@@ -30,6 +30,14 @@ class LoginController extends Controller
             ], 403);
         }
 
+        // Must verify email with the OTP first
+        if (! $user->email_verified_at) {
+            return response()->json([
+                'message' => 'Please verify your email before logging in.',
+                'email_not_verified' => true,
+            ], 403);
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
