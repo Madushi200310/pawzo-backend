@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\User\AvatarController;
 use App\Http\Controllers\User\PasswordController;
 use App\Http\Controllers\User\ProfileController;
 use Illuminate\Http\Request;
@@ -23,7 +24,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::put('/profile', [ProfileController::class, 'update']);
 
-    // ----- User Password (Member 1) -----
+    // ----- Avatar (Member 1) -----
+    Route::post('/profile/avatar',   [AvatarController::class, 'update']);
+    Route::delete('/profile/avatar', [AvatarController::class, 'destroy']);
+
+    // ----- Password (Member 1) -----
     Route::put('/password', [PasswordController::class, 'update']);
 
     // ----- Existing -----
