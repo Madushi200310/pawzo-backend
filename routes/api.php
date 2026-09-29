@@ -17,8 +17,11 @@ Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middl
 
 // Protected routes (need a valid token)
 Route::middleware('auth:sanctum')->group(function () {
+    // ---------- User Profile (Member 1) ----------
+    Route::get('/profile', [\App\Http\Controllers\User\ProfileController::class, 'show']);
+    Route::put('/profile', [\App\Http\Controllers\User\ProfileController::class, 'update']);
+
+    // ---------- Existing ----------
     Route::get('/user', fn (Request $request) => $request->user());
     Route::post('/logout', [LoginController::class, 'logout']);
-
-  
 });
