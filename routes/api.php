@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Pet\PetController;
 use App\Http\Controllers\User\AvatarController;
 use App\Http\Controllers\User\PasswordController;
 use App\Http\Controllers\User\ProfileController;
@@ -30,6 +31,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ----- Password (Member 1) -----
     Route::put('/password', [PasswordController::class, 'update']);
+
+    // ----- Pets (Member 1) -----
+    Route::apiResource('pets', PetController::class);
+    Route::post('/pets/{pet}/photos',              [PetController::class, 'uploadPhotos']);
+    Route::delete('/pets/{pet}/photos/{photo}',    [PetController::class, 'destroyPhoto']);
 
     // ----- Existing -----
     Route::get('/user', fn (Request $request) => $request->user());
