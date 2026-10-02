@@ -54,6 +54,16 @@ class Pet extends Model
         return $this->hasMany(Vaccination::class);
     }
 
+    public function reminders(): HasMany
+    {
+        return $this->hasMany(Reminder::class);
+    }
+
+    public function shareTokens(): HasMany
+    {
+        return $this->hasMany(HealthShareToken::class);
+    }
+
     // ---------- Helpers ----------
 
     public function age(): ?int
