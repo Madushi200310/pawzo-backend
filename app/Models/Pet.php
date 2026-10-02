@@ -49,6 +49,11 @@ class Pet extends Model
         return $this->hasMany(HealthRecord::class);
     }
 
+    public function vaccinations(): HasMany
+    {
+        return $this->hasMany(Vaccination::class);
+    }
+
     // ---------- Helpers ----------
 
     public function age(): ?int
