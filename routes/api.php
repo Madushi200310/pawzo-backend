@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Pet\PetController;
+use App\Http\Controllers\Pet\PetNameController;
 use App\Http\Controllers\User\AvatarController;
 use App\Http\Controllers\User\PasswordController;
 use App\Http\Controllers\User\ProfileController;
@@ -34,8 +35,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ----- Pets (Member 1) -----
     Route::apiResource('pets', PetController::class);
-    Route::post('/pets/{pet}/photos',              [PetController::class, 'uploadPhotos']);
-    Route::delete('/pets/{pet}/photos/{photo}',    [PetController::class, 'destroyPhoto']);
+    Route::post('/pets/{pet}/photos',           [PetController::class, 'uploadPhotos']);
+    Route::delete('/pets/{pet}/photos/{photo}', [PetController::class, 'destroyPhoto']);
+
+    // ----- Pet Name Generator (Member 1) -----
+    Route::post('/pet-names/generate', [PetNameController::class, 'generate']);
 
     // ----- Existing -----
     Route::get('/user', fn (Request $request) => $request->user());
