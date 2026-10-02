@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Health\HealthRecordController;
 use App\Http\Controllers\Pet\PetController;
 use App\Http\Controllers\Pet\PetNameController;
 use App\Http\Controllers\User\AvatarController;
@@ -40,6 +41,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ----- Pet Name Generator (Member 1) -----
     Route::post('/pet-names/generate', [PetNameController::class, 'generate']);
+
+    // ----- Health Records (Member 1) -----
+    Route::get('/pets/{pet}/health-records/summary', [HealthRecordController::class, 'summary']);
+    Route::post('/pets/{pet}/health-records/{health_record}/documents',
+        [HealthRecordController::class, 'uploadDocuments']);
+    Route::delete('/pets/{pet}/health-records/{health_record}/documents/{document}',
+        [HealthRecordController::class, 'destroyDocument']);
+    Route::apiResource('pets.health-records', HealthRecordController::class);
 
     // ----- Existing -----
     Route::get('/user', fn (Request $request) => $request->user());

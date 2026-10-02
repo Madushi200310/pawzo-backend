@@ -44,11 +44,13 @@ class Pet extends Model
         return $this->hasMany(PetPhoto::class);
     }
 
+    public function healthRecords(): HasMany
+    {
+        return $this->hasMany(HealthRecord::class);
+    }
+
     // ---------- Helpers ----------
 
-    /**
-     * Age in years (integer), or null if no DOB set.
-     */
     public function age(): ?int
     {
         return $this->date_of_birth?->age;
