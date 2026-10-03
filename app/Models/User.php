@@ -92,6 +92,22 @@ class User extends Authenticatable
         return $this->hasMany(HealthShareToken::class);
     }
 
+    /**
+     * Pet reports submitted by this user (as the reporter).
+     */
+    public function petReports(): HasMany
+    {
+        return $this->hasMany(PetReport::class, 'reporter_id');
+    }
+
+    /**
+     * Pet reports reviewed by this user (as an admin).
+     */
+    public function reviewedPetReports(): HasMany
+    {
+        return $this->hasMany(PetReport::class, 'reviewed_by');
+    }
+
     // ---------- Admin helpers ----------
 
     /**

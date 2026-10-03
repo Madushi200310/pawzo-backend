@@ -64,6 +64,11 @@ class Pet extends Model
         return $this->hasMany(HealthShareToken::class);
     }
 
+    public function reports(): HasMany
+    {
+        return $this->hasMany(PetReport::class);
+    }
+
     // ---------- Helpers ----------
 
     public function age(): ?int

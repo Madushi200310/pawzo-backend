@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminPetController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\OtpController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\Health\ReminderController;
 use App\Http\Controllers\Health\VaccinationController;
 use App\Http\Controllers\Pet\PetController;
 use App\Http\Controllers\Pet\PetNameController;
+use App\Http\Controllers\Pet\ReportPetController;
 use App\Http\Controllers\PublicAccess\PublicHealthController;
 use App\Http\Controllers\User\AvatarController;
 use App\Http\Controllers\User\PasswordController;
@@ -47,6 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('pets', PetController::class);
     Route::post('/pets/{pet}/photos',           [PetController::class, 'uploadPhotos']);
     Route::delete('/pets/{pet}/photos/{photo}', [PetController::class, 'destroyPhoto']);
+    Route::post('/pets/{pet}/report',           [ReportPetController::class, 'store']);
 
     // ----- Pet Name Generator -----
     Route::post('/pet-names/generate', [PetNameController::class, 'generate']);
@@ -84,10 +87,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ================= Admin routes =================
     Route::middleware('admin')->prefix('admin')->group(function () {
+        // Users
         Route::get('/users',                    [AdminUserController::class, 'index']);
         Route::get('/users/{user}',             [AdminUserController::class, 'show']);
         Route::patch('/users/{user}/status',    [AdminUserController::class, 'updateStatus']);
         Route::delete('/users/{user}',          [AdminUserController::class, 'destroy']);
         Route::get('/users/{user}/activity',    [AdminUserController::class, 'activity']);
+
+        // Pets
+        Route::get('/pets',                     [AdminPetController::class, 'index']);
+        Route::get('/pets/{pet}',               [AdminPetController::class, 'show']);
+        Route::delete('/pets/{pet}',            [AdminPetController::class, 'destroy']);
+        Route::patch('/pets/{id}/restore',      [AdminPetController::class, 'restore']);
+
+        // Pet Reports
+        Route::get('/pet-reports',              [AdminPetController::class, 'reports']);
+        Route::patch('/pet-reports/{report}',   [AdminPetController::class, 'reviewReport']);
     });
 });
