@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\Health\HealthQrController;
 use App\Http\Controllers\Health\HealthRecordController;
 use App\Http\Controllers\Health\ReminderController;
@@ -27,6 +28,10 @@ Route::post('/email/verify', [OtpController::class, 'verifyEmail'])->middleware(
 Route::post('/email/resend-otp', [OtpController::class, 'resend'])->middleware('throttle:5,1');
 Route::post('/forgot-password', [PasswordResetController::class, 'forgot'])->middleware('throttle:5,1');
 Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:10,1');
+
+// -------- Social Login --------
+Route::get('/auth/google/redirect',  [SocialAuthController::class, 'redirectToGoogle']);
+Route::get('/auth/google/callback',  [SocialAuthController::class, 'handleGoogleCallback']);
 
 // -------- Public Health QR (no auth) --------
 Route::get('/public/pets/{token}', [PublicHealthController::class, 'show'])
