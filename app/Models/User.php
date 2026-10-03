@@ -6,6 +6,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -13,7 +14,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -51,8 +52,9 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'is_active' => 'boolean',
+            'password'          => 'hashed',
+            'is_active'         => 'boolean',
+            'deleted_at'        => 'datetime',
         ];
     }
 
@@ -88,5 +90,31 @@ class User extends Authenticatable
     public function healthShareTokens(): HasMany
     {
         return $this->hasMany(HealthShareToken::class);
+    }
+
+    // ---------- Admin helpers ----------
+
+    /**
+     * Count pets belonging to this user (including soft-deleted).
+     */
+    public function petsCount(): int
+    {
+        return $this->pets()->withTrashed()->count();
+    }
+
+    /**
+     * Count health records across all this user's pets.
+     */
+    public function healthRecordsCount(): int
+    {
+        return \App\Models\HealthRecord::whereIn('pet_id', $this->pets()->withTrashed()->pluck('id'))->count();
+    }
+
+    /**
+     * Count vaccinations across all this user's pets.
+     */
+    public function vaccinationsCount(): int
+    {
+        return \App\Models\Vaccination::whereIn('pet_id', $this->pets()->withTrashed()->pluck('id'))->count();
     }
 }

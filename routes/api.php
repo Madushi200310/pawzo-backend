@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Auth\PasswordResetController;
@@ -80,4 +81,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // ----- Existing -----
     Route::get('/user', fn (Request $request) => $request->user());
     Route::post('/logout', [LoginController::class, 'logout']);
+
+    // ================= Admin routes =================
+    Route::middleware('admin')->prefix('admin')->group(function () {
+        Route::get('/users',                    [AdminUserController::class, 'index']);
+        Route::get('/users/{user}',             [AdminUserController::class, 'show']);
+        Route::patch('/users/{user}/status',    [AdminUserController::class, 'updateStatus']);
+        Route::delete('/users/{user}',          [AdminUserController::class, 'destroy']);
+        Route::get('/users/{user}/activity',    [AdminUserController::class, 'activity']);
+    });
 });
