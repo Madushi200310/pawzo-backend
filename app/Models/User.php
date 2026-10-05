@@ -15,6 +15,7 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -57,6 +58,11 @@ class User extends Authenticatable
             'deleted_at'        => 'datetime',
         ];
     }
+
+        ];
+    }
+
+    // ==================== HELPERS ====================
 
     /**
      * Check whether this user is an admin.
@@ -132,5 +138,36 @@ class User extends Authenticatable
     public function vaccinationsCount(): int
     {
         return \App\Models\Vaccination::whereIn('pet_id', $this->pets()->withTrashed()->pluck('id'))->count();
+    // ==================== RELATIONSHIPS ====================
+
+    /**
+     * Businesses owned by this user.
+     */
+    public function businesses(): HasMany
+    {
+        return $this->hasMany(Business::class);
+    }
+
+    public function products(): HasMany
+{
+    return $this->hasMany(Product::class);
+}
+
+public function productCategories(): HasMany  // if you want user-specific
+{
+    return $this->hasMany(ProductCategory::class);
+}
+
+public function petSaleListings(): HasMany
+{
+    return $this->hasMany(PetSaleListing::class);
+}
+
+    /**
+     * Businesses approved by this user (as admin).
+     */
+    public function approvedBusinesses(): HasMany
+    {
+        return $this->hasMany(Business::class, 'approved_by');
     }
 }

@@ -33,6 +33,9 @@ return [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect'      => env('GOOGLE_REDIRECT_URL'),
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'model'   => env('OPENAI_MODEL', 'gpt-4o-mini'),
     ],
 
 ];
