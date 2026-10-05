@@ -24,4 +24,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('business_types');
     }
-};php artisan migrate:rollback --step=1
+};
