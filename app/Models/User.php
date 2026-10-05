@@ -76,6 +76,16 @@ class User extends Authenticatable
         return $this->hasMany(Business::class);
     }
 
+    public function products(): HasMany
+{
+    return $this->hasMany(Product::class);
+}
+
+public function productCategories(): HasMany  // if you want user-specific
+{
+    return $this->hasMany(ProductCategory::class);
+}
+
     /**
      * Businesses approved by this user (as admin).
      */
