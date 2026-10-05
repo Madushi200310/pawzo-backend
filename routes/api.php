@@ -26,3 +26,6 @@ require __DIR__.'/found_pets.php';
 
 // Smart Matching routes
 require __DIR__.'/smart_matching.php';
+
+// Maps / Locations routes
+require __DIR__.'/maps.php';
