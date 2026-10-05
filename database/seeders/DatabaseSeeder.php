@@ -21,5 +21,10 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        // 👇 ADD THIS LINE 👇
+        $this->call([
+            BusinessTypeSeeder::class,
+        ]);
     }
 }
