@@ -61,6 +61,19 @@ Route::middleware('auth:sanctum')->group(function () {
     // === Auth / User ===
     Route::get('/user', fn (Request $request) => $request->user());
     Route::post('/logout', [LoginController::class, 'logout']);
+});
+
+// Member 02 - Lost Pets routes
+require __DIR__.'/lost_pets.php';
+
+// Found Pets routes
+require __DIR__.'/found_pets.php';
+
+// Smart Matching routes
+require __DIR__.'/smart_matching.php';
+
+// Maps / Locations routes
+require __DIR__.'/maps.php';
     // Pet Sale Listings (seller CRUD)
 Route::post('/pet-sales', [PetSaleListingController::class, 'store']);
 Route::put('/pet-sales/{petSaleListing}', [PetSaleListingController::class, 'update']);
