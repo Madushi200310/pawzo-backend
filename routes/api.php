@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PetSaleListingController;
 use App\Http\Controllers\Admin\PetSaleListingApprovalController;
+use App\Http\Controllers\ChatbotController;
+use App\Http\Controllers\Admin\ChatbotMonitoringController;
 
 /*
 |--------------------------------------------------------------------------
@@ -42,6 +44,12 @@ Route::get('/products/{product}', [ProductController::class, 'show']);
 Route::get('/pet-sales', [PetSaleListingController::class, 'index']);
 Route::get('/pet-sales/{petSaleListing}', [PetSaleListingController::class, 'show']);
 
+// AI Chatbot (works for guests and authenticated users)
+Route::post('/chatbot/ask', [ChatbotController::class, 'ask'])->middleware('throttle:30,1');
+Route::get('/chatbot/conversations', [ChatbotController::class, 'conversations']);
+Route::get('/chatbot/conversations/{conversation}', [ChatbotController::class, 'show']);
+Route::delete('/chatbot/conversations/{conversation}', [ChatbotController::class, 'destroy']);  
+
 /*
 |--------------------------------------------------------------------------
 | PROTECTED ROUTES (Sanctum)
@@ -65,6 +73,14 @@ Route::prefix('admin/pet-sales')->group(function () {
     Route::get('/{petSaleListing}',           [PetSaleListingApprovalController::class, 'show']);
     Route::post('/{petSaleListing}/approve',  [PetSaleListingApprovalController::class, 'approve']);
     Route::post('/{petSaleListing}/reject',   [PetSaleListingApprovalController::class, 'reject']);
+});
+
+// Admin Chatbot Monitoring
+Route::prefix('admin/chatbot')->group(function () {
+    Route::get('/conversations',                    [ChatbotMonitoringController::class, 'index']);
+    Route::get('/conversations/{conversation}',     [ChatbotMonitoringController::class, 'show']);
+    Route::delete('/conversations/{conversation}',  [ChatbotMonitoringController::class, 'destroy']);
+    Route::get('/stats',                            [ChatbotMonitoringController::class, 'stats']);
 });
 
     /*
