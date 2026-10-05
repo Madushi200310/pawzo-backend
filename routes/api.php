@@ -23,3 +23,6 @@ require __DIR__.'/lost_pets.php';
 
 // Found Pets routes
 require __DIR__.'/found_pets.php';
+
+// Smart Matching routes
+require __DIR__.'/smart_matching.php';
