@@ -11,6 +11,8 @@ use App\Http\Controllers\Admin\BusinessVerificationController;
 use App\Http\Controllers\Admin\ProductApprovalController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\PetSaleListingController;
+use App\Http\Controllers\Admin\PetSaleListingApprovalController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,6 +38,10 @@ Route::get('/product-categories/{productCategory}', [ProductCategoryController::
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/{product}', [ProductController::class, 'show']);
 
+// Pet Sale Listings (public browse)
+Route::get('/pet-sales', [PetSaleListingController::class, 'index']);
+Route::get('/pet-sales/{petSaleListing}', [PetSaleListingController::class, 'show']);
+
 /*
 |--------------------------------------------------------------------------
 | PROTECTED ROUTES (Sanctum)
@@ -47,6 +53,19 @@ Route::middleware('auth:sanctum')->group(function () {
     // === Auth / User ===
     Route::get('/user', fn (Request $request) => $request->user());
     Route::post('/logout', [LoginController::class, 'logout']);
+    // Pet Sale Listings (seller CRUD)
+Route::post('/pet-sales', [PetSaleListingController::class, 'store']);
+Route::put('/pet-sales/{petSaleListing}', [PetSaleListingController::class, 'update']);
+Route::delete('/pet-sales/{petSaleListing}', [PetSaleListingController::class, 'destroy']);
+
+// Admin Pet Sale Approval
+Route::prefix('admin/pet-sales')->group(function () {
+    Route::get('/',                           [PetSaleListingApprovalController::class, 'index']);
+    Route::get('/stats',                      [PetSaleListingApprovalController::class, 'stats']);
+    Route::get('/{petSaleListing}',           [PetSaleListingApprovalController::class, 'show']);
+    Route::post('/{petSaleListing}/approve',  [PetSaleListingApprovalController::class, 'approve']);
+    Route::post('/{petSaleListing}/reject',   [PetSaleListingApprovalController::class, 'reject']);
+});
 
     /*
     |----------------------------------------------------------------------

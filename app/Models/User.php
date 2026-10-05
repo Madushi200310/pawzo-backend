@@ -86,6 +86,11 @@ public function productCategories(): HasMany  // if you want user-specific
     return $this->hasMany(ProductCategory::class);
 }
 
+public function petSaleListings(): HasMany
+{
+    return $this->hasMany(PetSaleListing::class);
+}
+
     /**
      * Businesses approved by this user (as admin).
      */
