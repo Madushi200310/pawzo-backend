@@ -53,8 +53,10 @@ Route::post('/forgot-password', [PasswordResetController::class, 'forgot'])->mid
 Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:10,1');
 
 // -------- Social Login --------
-Route::get('/auth/google/redirect',  [SocialAuthController::class, 'redirectToGoogle']);
-Route::get('/auth/google/callback',  [SocialAuthController::class, 'handleGoogleCallback']);
+Route::get('/auth/google/redirect',   [SocialAuthController::class, 'redirectToGoogle']);
+Route::get('/auth/google/callback',   [SocialAuthController::class, 'handleGoogleCallback']);
+Route::get('/auth/facebook/redirect', [SocialAuthController::class, 'redirectToFacebook']);
+Route::get('/auth/facebook/callback', [SocialAuthController::class, 'handleFacebookCallback']);
 
 // -------- Public Health QR (no auth) --------
 Route::get('/public/pets/{token}', [PublicHealthController::class, 'show'])
