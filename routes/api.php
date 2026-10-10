@@ -12,6 +12,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\Admin\BusinessVerificationController;
 use App\Http\Controllers\Admin\ChatbotMonitoringController;
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\PetSaleListingApprovalController;
 use App\Http\Controllers\Admin\ProductApprovalController;
 use App\Http\Controllers\Admin\ReviewManagementController;
@@ -96,6 +97,10 @@ Route::middleware('auth:sanctum')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::middleware('admin')->prefix('admin')->group(function () {
+
+        // Admin - Dashboard
+        Route::get('/dashboard',       [DashboardController::class, 'index']);
+        Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
 
         // Admin - Business Verification
         Route::prefix('business-verifications')->group(function () {
