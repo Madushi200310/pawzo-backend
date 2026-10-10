@@ -15,6 +15,8 @@ use App\Http\Controllers\PetSaleListingController;
 use App\Http\Controllers\Admin\PetSaleListingApprovalController;
 use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\Admin\ChatbotMonitoringController;
+use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\Admin\ReviewManagementController;
 
 /*
 |--------------------------------------------------------------------------
@@ -50,6 +52,9 @@ Route::get('/chatbot/conversations', [ChatbotController::class, 'conversations']
 Route::get('/chatbot/conversations/{conversation}', [ChatbotController::class, 'show']);
 Route::delete('/chatbot/conversations/{conversation}', [ChatbotController::class, 'destroy']);  
 
+// Reviews (public — list approved; auth needed for create)
+Route::get('/reviews', [ReviewController::class, 'index']);
+
 /*
 |--------------------------------------------------------------------------
 | PROTECTED ROUTES (Sanctum)
@@ -82,6 +87,13 @@ Route::prefix('admin/chatbot')->group(function () {
     Route::delete('/conversations/{conversation}',  [ChatbotMonitoringController::class, 'destroy']);
     Route::get('/stats',                            [ChatbotMonitoringController::class, 'stats']);
 });
+
+// === Reviews (authenticated user actions) ===
+Route::post('/reviews', [ReviewController::class, 'store']);
+Route::get('/reviews/mine', [ReviewController::class, 'mine']);
+Route::put('/reviews/{review}', [ReviewController::class, 'update']);
+Route::delete('/reviews/{review}', [ReviewController::class, 'destroy']);
+
 
     /*
     |----------------------------------------------------------------------
@@ -153,4 +165,14 @@ Route::prefix('admin/chatbot')->group(function () {
         Route::post('/{product}/approve',  [ProductApprovalController::class, 'approve']);
         Route::post('/{product}/reject',   [ProductApprovalController::class, 'reject']);
     });
+
+    // === Admin: Reviews Management ===
+Route::prefix('admin/reviews')->group(function () {
+    Route::get('/',                    [ReviewManagementController::class, 'index']);
+    Route::get('/stats',               [ReviewManagementController::class, 'stats']);
+    Route::get('/{review}',            [ReviewManagementController::class, 'show']);
+    Route::post('/{review}/approve',   [ReviewManagementController::class, 'approve']);
+    Route::post('/{review}/reject',    [ReviewManagementController::class, 'reject']);
+    Route::delete('/{review}',         [ReviewManagementController::class, 'destroy']);
+});
 });

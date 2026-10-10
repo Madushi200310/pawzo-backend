@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Business extends Model
 {
@@ -106,4 +107,19 @@ class Business extends Model
             }
         });
     }
+
+    public function reviews(): MorphMany
+{
+    return $this->morphMany(Review::class, 'reviewable');
+}
+
+public function approvedReviews(): MorphMany
+{
+    return $this->morphMany(Review::class, 'reviewable')->where('is_approved', true);
+}
+
+public function averageRating(): float
+{
+    return round($this->approvedReviews()->avg('rating') ?? 0, 2);
+}
 }

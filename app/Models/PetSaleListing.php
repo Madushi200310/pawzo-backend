@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class PetSaleListing extends Model
 {
@@ -72,5 +73,20 @@ class PetSaleListing extends Model
     public function isSold(): bool
     {
         return $this->status === 'sold';
+    }
+
+    public function reviews(): MorphMany
+    {
+        return $this->morphMany(Review::class, 'reviewable');
+    }
+
+    public function approvedReviews(): MorphMany
+    {
+        return $this->morphMany(Review::class, 'reviewable')->where('is_approved', true);
+    }
+
+    public function averageRating(): float
+    {
+        return round($this->approvedReviews()->avg('rating') ?? 0, 2);
     }
 }
