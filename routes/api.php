@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\ProductApprovalController;
 use App\Http\Controllers\Admin\ReviewManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\UserManagementController;
 
 /*
 |--------------------------------------------------------------------------
@@ -101,6 +102,18 @@ Route::middleware('auth:sanctum')->group(function () {
         // Admin - Dashboard
         Route::get('/dashboard',       [DashboardController::class, 'index']);
         Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
+
+        // Admin - User Management
+        Route::prefix('users')->group(function () {
+            Route::get('/',                     [UserManagementController::class, 'index']);
+            Route::get('/stats',                [UserManagementController::class, 'stats']);
+            Route::get('/{user}',               [UserManagementController::class, 'show']);
+            Route::post('/{user}/activate',     [UserManagementController::class, 'activate']);
+            Route::post('/{user}/deactivate',   [UserManagementController::class, 'deactivate']);
+            Route::post('/{user}/make-admin',   [UserManagementController::class, 'makeAdmin']);
+            Route::post('/{user}/remove-admin', [UserManagementController::class, 'removeAdmin']);
+            Route::delete('/{user}',            [UserManagementController::class, 'destroy']);
+        });
 
         // Admin - Business Verification
         Route::prefix('business-verifications')->group(function () {

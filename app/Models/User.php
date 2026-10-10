@@ -76,20 +76,21 @@ class User extends Authenticatable
         return $this->hasMany(Business::class);
     }
 
+    /**
+     * Products listed by this user.
+     */
     public function products(): HasMany
-{
-    return $this->hasMany(Product::class);
-}
+    {
+        return $this->hasMany(Product::class);
+    }
 
-public function productCategories(): HasMany  // if you want user-specific
-{
-    return $this->hasMany(ProductCategory::class);
-}
-
-public function petSaleListings(): HasMany
-{
-    return $this->hasMany(PetSaleListing::class);
-}
+    /**
+     * Pet sale listings by this user.
+     */
+    public function petSaleListings(): HasMany
+    {
+        return $this->hasMany(PetSaleListing::class);
+    }
 
     /**
      * Businesses approved by this user (as admin).
@@ -97,5 +98,21 @@ public function petSaleListings(): HasMany
     public function approvedBusinesses(): HasMany
     {
         return $this->hasMany(Business::class, 'approved_by');
+    }
+
+    /**
+     * Reviews written by this user.
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    /**
+     * Chatbot conversations owned by this user.
+     */
+    public function chatbotConversations(): HasMany
+    {
+        return $this->hasMany(ChatbotConversation::class);
     }
 }
