@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\ReviewManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Admin\AdminProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -175,6 +176,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{review}/approve',   [ReviewManagementController::class, 'approve']);
             Route::post('/{review}/reject',    [ReviewManagementController::class, 'reject']);
             Route::delete('/{review}',         [ReviewManagementController::class, 'destroy']);
+        });
+
+        // Admin - Own Profile & Security
+        Route::prefix('profile')->group(function () {
+            Route::get('/',              [AdminProfileController::class, 'show']);
+            Route::put('/',              [AdminProfileController::class, 'update']);
+            Route::post('/change-password', [AdminProfileController::class, 'changePassword']);
+            Route::post('/logout-all',   [AdminProfileController::class, 'logoutAll']);
+            Route::get('/activity',      [AdminProfileController::class, 'activity']);
         });
     });
 });
