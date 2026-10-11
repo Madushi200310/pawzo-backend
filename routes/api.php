@@ -170,3 +170,6 @@ require __DIR__.'/maps.php';
 
 // Stray Reports routes
 require __DIR__.'/stray_reports.php';
+
+// Notifications routes
+require __DIR__.'/notifications.php';
