@@ -4,6 +4,7 @@ namespace App\Services\Maps;
 
 use App\Models\FoundPetReport;
 use App\Models\LostPetReport;
+use App\Models\StrayReport;
 use Illuminate\Database\Eloquent\Builder;
 
 class MapReportsService
@@ -18,32 +19,24 @@ class MapReportsService
         $kind = $filters['kind'] ?? 'all';
         $status = $filters['status'] ?? 'open';
         $limit = (int) ($filters['limit'] ?? 100);
-
         $nearest = [];
         $total = 0;
 
-        $models = [
-            'lost' => LostPetReport::class,
-            'found' => FoundPetReport::class,
+        $sources = [
+            'lost' => [LostPetReport::class, 'lost_at', 'lost-pets'],
+            'found' => [FoundPetReport::class, 'found_at', 'found-pets'],
+            'stray' => [StrayReport::class, 'spotted_at', 'stray-reports'],
         ];
 
-        foreach ($models as $type => $model) {
+        foreach ($sources as $type => [$model, $dateColumn, $path]) {
             if ($kind !== 'all' && $kind !== $type) {
                 continue;
             }
 
-            $dateColumn = $type.'_at';
-
             $query = $model::query()
                 ->select([
-                    'id',
-                    'pet_name',
-                    'pet_type',
-                    'status',
-                    'location_name',
-                    'latitude',
-                    'longitude',
-                    $dateColumn,
+                    'id', 'pet_name', 'pet_type', 'status', 'location_name',
+                    'latitude', 'longitude', $dateColumn,
                 ])
                 ->where('status', $status)
                 ->whereHas('user', function (Builder $users) {
@@ -55,32 +48,18 @@ class MapReportsService
                 $query->where('pet_type', $filters['pet_type']);
             }
 
-            $this->boundCoordinates(
-                $query,
-                $latitude,
-                $longitude,
-                $radius
-            );
+            $this->boundCoordinates($query, $latitude, $longitude, $radius);
 
-            // Read candidates in batches.
-            // Keep only the nearest requested number in memory.
-            // SQL limit must not be applied before distance calculation.
+            // Scan in batches, retaining only the nearest requested pins.
+            // Do not apply SQL limit before calculating exact distances.
             $query->chunkById(250, function ($reports) use (
-                &$nearest,
-                &$total,
-                $latitude,
-                $longitude,
-                $radius,
-                $limit,
-                $type,
-                $dateColumn
+                &$nearest, &$total, $latitude, $longitude, $radius,
+                $limit, $type, $dateColumn, $path
             ) {
                 foreach ($reports as $report) {
                     $distance = $this->distanceKm(
-                        $latitude,
-                        $longitude,
-                        (float) $report->latitude,
-                        (float) $report->longitude
+                        $latitude, $longitude,
+                        (float) $report->latitude, (float) $report->longitude
                     );
 
                     if ($distance > $radius) {
@@ -88,26 +67,21 @@ class MapReportsService
                     }
 
                     $total++;
-
                     $nearest[] = [
                         'kind' => $type,
                         'id' => (int) $report->id,
                         'distance' => $distance,
-
                         'feature' => [
                             'type' => 'Feature',
-
-                            // Lost #2 and Found #2 need different pin IDs.
                             'id' => $type.':'.$report->id,
-
                             'geometry' => [
                                 'type' => 'Point',
+                                // GeoJSON uses longitude first.
                                 'coordinates' => [
                                     (float) $report->longitude,
                                     (float) $report->latitude,
                                 ],
                             ],
-
                             'properties' => [
                                 'report_id' => (int) $report->id,
                                 'kind' => $type,
@@ -115,30 +89,20 @@ class MapReportsService
                                 'pet_type' => $report->pet_type,
                                 'status' => $report->status,
                                 'location_name' => $report->location_name,
-
-                                'occurred_at' => $report->{$dateColumn}
-                                    ->toISOString(),
-
+                                'occurred_at' => $report->{$dateColumn}->toISOString(),
                                 'distance_km' => round($distance, 3),
-
-                                'details_url' => url(
-                                    '/api/'.$type.'-pets/'.$report->id
-                                ),
+                                'details_url' => url('/api/'.$path.'/'.$report->id),
                             ],
                         ],
                     ];
                 }
 
-                // Use the original distance for sorting.
-                // Break equal-distance ties consistently.
-                usort(
-                    $nearest,
-                    static fn (array $a, array $b): int =>
-                        ($a['distance'] <=> $b['distance'])
-                        ?: strcmp($a['kind'], $b['kind'])
-                        ?: ($a['id'] <=> $b['id'])
+                // Sort unrounded distances; use kind/id to break ties.
+                usort($nearest, static fn (array $a, array $b): int =>
+                    ($a['distance'] <=> $b['distance'])
+                    ?: strcmp($a['kind'], $b['kind'])
+                    ?: ($a['id'] <=> $b['id'])
                 );
-
                 $nearest = array_slice($nearest, 0, $limit);
             });
         }
@@ -146,12 +110,8 @@ class MapReportsService
         return [
             'type' => 'FeatureCollection',
             'features' => array_column($nearest, 'feature'),
-
             'meta' => [
-                'center' => [
-                    'latitude' => $latitude,
-                    'longitude' => $longitude,
-                ],
+                'center' => ['latitude' => $latitude, 'longitude' => $longitude],
                 'radius_km' => $radius,
                 'kind' => $kind,
                 'pet_type' => $filters['pet_type'] ?? null,
@@ -166,41 +126,29 @@ class MapReportsService
     }
 
     private function boundCoordinates(
-        Builder $query,
-        float $latitude,
-        float $longitude,
-        float $radius
+        Builder $query, float $latitude, float $longitude, float $radius
     ): void {
         $angular = $radius / self::EARTH_RADIUS_KM;
         $latitudeDelta = rad2deg($angular);
-
         $south = max(-90, $latitude - $latitudeDelta);
         $north = min(90, $latitude + $latitudeDelta);
 
-        // Expand slightly to avoid floating-point rounding exclusions.
-        $query->whereBetween('latitude', [
-            $south - 0.0000001,
-            $north + 0.0000001,
-        ]);
+        // Slightly expand the preliminary box to avoid rounding exclusions.
+        $query->whereBetween('latitude', [$south - 0.0000001, $north + 0.0000001]);
 
-        // A search circle touching a pole may cover every longitude.
+        // A circle touching a pole can contain every longitude.
         if ($south <= -90 || $north >= 90) {
             return;
         }
 
-        $longitudeDelta = rad2deg(
-            asin(
-                min(
-                    1.0,
-                    sin($angular) / cos(deg2rad($latitude))
-                )
-            )
-        ) + 0.0000001;
+        $longitudeDelta = rad2deg(asin(min(
+            1.0, sin($angular) / cos(deg2rad($latitude))
+        ))) + 0.0000001;
 
         $west = $longitude - $longitudeDelta;
         $east = $longitude + $longitudeDelta;
 
-        // Group OR conditions so visibility restrictions still apply.
+        // Group OR conditions so they cannot bypass visibility filters.
         $query->where(function (Builder $bounds) use ($west, $east) {
             if ($west < -180) {
                 $bounds->where('longitude', '>=', $west + 360)
@@ -215,21 +163,16 @@ class MapReportsService
     }
 
     private function distanceKm(
-        float $latitude1,
-        float $longitude1,
-        float $latitude2,
-        float $longitude2
+        float $latitude1, float $longitude1,
+        float $latitude2, float $longitude2
     ): float {
         $lat1 = deg2rad($latitude1);
         $lat2 = deg2rad($latitude2);
-
         $a = sin(($lat2 - $lat1) / 2) ** 2
             + cos($lat1) * cos($lat2)
             * sin(deg2rad($longitude2 - $longitude1) / 2) ** 2;
-
         $a = max(0.0, min(1.0, $a));
 
-        return 2 * self::EARTH_RADIUS_KM
-            * atan2(sqrt($a), sqrt(1 - $a));
+        return 2 * self::EARTH_RADIUS_KM * atan2(sqrt($a), sqrt(1 - $a));
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Maps;
 
 use App\Models\LostPetReport;
+use App\Models\StrayReport;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,49 +17,13 @@ class MapReportsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'latitude' => [
-                'required',
-                'numeric',
-                'between:-90,90',
-            ],
-
-            'longitude' => [
-                'required',
-                'numeric',
-                'between:-180,180',
-            ],
-
-            'radius_km' => [
-                'sometimes',
-                'required',
-                'numeric',
-                'between:0.1,100',
-            ],
-
-            'kind' => [
-                'sometimes',
-                'required',
-                Rule::in(['all', 'lost', 'found']),
-            ],
-
-            'pet_type' => [
-                'sometimes',
-                'required',
-                Rule::in(LostPetReport::TYPES),
-            ],
-
-            'status' => [
-                'sometimes',
-                'required',
-                Rule::in(LostPetReport::STATUSES),
-            ],
-
-            'limit' => [
-                'sometimes',
-                'required',
-                'integer',
-                'between:1,200',
-            ],
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'radius_km' => ['sometimes', 'required', 'numeric', 'between:0.1,100'],
+            'kind' => ['sometimes', 'required', Rule::in(['all', 'lost', 'found', 'stray'])],
+            'pet_type' => ['sometimes', 'required', Rule::in(LostPetReport::TYPES)],
+            'status' => ['sometimes', 'required', Rule::in(array_unique([...LostPetReport::STATUSES, ...StrayReport::STATUSES]))],
+            'limit' => ['sometimes', 'required', 'integer', 'between:1,200'],
         ];
     }
 }

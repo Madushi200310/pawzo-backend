@@ -29,3 +29,6 @@ require __DIR__.'/smart_matching.php';
 
 // Maps / Locations routes
 require __DIR__.'/maps.php';
+
+// Stray Reports routes
+require __DIR__.'/stray_reports.php';
