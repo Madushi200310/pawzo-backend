@@ -25,6 +25,11 @@ class EnsureUserIsAdmin
         if (!$user->isAdmin()) {
             return response()->json([
                 'message' => 'Unauthorized. Admin access required.',
+    public function handle(Request $request, Closure $next): Response
+    {
+        if (! $request->user() || ! $request->user()->isAdmin()) {
+            return response()->json([
+                'message' => 'This action requires admin access.',
             ], 403);
         }
 
