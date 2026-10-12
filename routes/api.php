@@ -159,6 +159,9 @@ Route::middleware('auth:sanctum')->group(function () {
 // Member 02 - Lost Pets routes
 require __DIR__.'/lost_pets.php';
 
+// Pet Rentals routes
+require __DIR__.'/rentals.php';
+
 // Found Pets routes
 require __DIR__.'/found_pets.php';
 
