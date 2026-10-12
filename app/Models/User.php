@@ -68,6 +68,30 @@ class User extends Authenticatable
         return $this->role === 'admin';
     }
 
+    // ==================== RELATIONSHIPS ====================
+
+    /**
+     * Businesses owned by this user.
+     */
+    public function businesses(): HasMany
+    {
+        return $this->hasMany(Business::class);
+    }
+
+    /**
+     * Products listed by this user.
+     */
+    public function products(): HasMany
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    /**
+     * Pet sale listings by this user.
+     */
+    public function petSaleListings(): HasMany
+    {
+        return $this->hasMany(PetSaleListing::class);
     // ==================== MEMBER 1 — RELATIONSHIPS ====================
 
     /**
@@ -155,6 +179,19 @@ class User extends Authenticatable
     }
 
     /**
+     * Reviews written by this user.
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    /**
+     * Chatbot conversations owned by this user.
+     */
+    public function chatbotConversations(): HasMany
+    {
+        return $this->hasMany(ChatbotConversation::class);
      * Products owned by this user.
      */
     public function products(): HasMany
