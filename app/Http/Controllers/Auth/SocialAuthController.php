@@ -40,10 +40,12 @@ class SocialAuthController extends Controller
             ], 401);
         }
 
+        // Find by google_id first, then by email
         $user = User::where('google_id', $googleUser->getId())->first()
             ?? User::where('email', $googleUser->getEmail())->first();
 
         if (! $user) {
+            // Create a fresh user (email already verified by Google)
             $user = User::create([
                 'name'              => $googleUser->getName() ?: 'Google User',
                 'email'             => $googleUser->getEmail(),
@@ -55,12 +57,14 @@ class SocialAuthController extends Controller
                 'email_verified_at' => now(),
             ]);
         } elseif (! $user->google_id) {
+            // Link the Google account to an existing user
             $user->update([
                 'google_id' => $googleUser->getId(),
                 'avatar'    => $user->avatar ?? $googleUser->getAvatar(),
             ]);
         }
 
+        // Block deactivated accounts
         if (! $user->is_active) {
             return response()->json([
                 'message' => 'Your account has been deactivated. Please contact support.',
@@ -108,6 +112,7 @@ class SocialAuthController extends Controller
             ?? User::where('email', $fbUser->getEmail())->first();
 
         if (! $user) {
+            // Create a fresh user (email already verified by Facebook)
             $user = User::create([
                 'name'              => $fbUser->getName() ?: 'Facebook User',
                 'email'             => $fbUser->getEmail(),
@@ -119,12 +124,14 @@ class SocialAuthController extends Controller
                 'email_verified_at' => now(),
             ]);
         } elseif (! $user->facebook_id) {
+            // Link the Facebook account to an existing user
             $user->update([
                 'facebook_id' => $fbUser->getId(),
                 'avatar'      => $user->avatar ?? $fbUser->getAvatar(),
             ]);
         }
 
+        // Block deactivated accounts
         if (! $user->is_active) {
             return response()->json([
                 'message' => 'Your account has been deactivated. Please contact support.',

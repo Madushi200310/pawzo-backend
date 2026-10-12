@@ -14,6 +14,7 @@ class PetMatch extends Model
         'details',
         'lost_updated_at',
         'found_updated_at',
+
     ];
 
     protected function casts(): array
@@ -21,6 +22,7 @@ class PetMatch extends Model
         return [
             'score' => 'float',
             'details' => 'array',
+            'flagged_at' => 'datetime',
         ];
     }
 

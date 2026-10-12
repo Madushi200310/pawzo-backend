@@ -38,6 +38,7 @@ class SaveFoundPetRequest extends FormRequest
             'longitude' => [...$required, 'numeric', 'between:-180,180'],
             'contact_name' => [...$required, 'string', 'max:100'],
             'contact_phone' => [...$required, ...$phone],
+            'whatsapp_number' => ['sometimes', 'nullable', ...$phone],
             'whatsapp_number' => [...$required, ...$phone],
             // Ownership, status, and filenames must never come from this form.
             'user_id' => ['prohibited'],
