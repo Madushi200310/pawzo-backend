@@ -182,3 +182,6 @@ require __DIR__.'/services.php';
 
 // Admin routes
 require __DIR__.'/admin.php';
+
+// Reviews routes
+require __DIR__.'/reviews.php';

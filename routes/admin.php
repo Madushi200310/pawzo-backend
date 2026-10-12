@@ -1,12 +1,17 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminPetServiceController;
+use App\Http\Controllers\Admin\AdminReviewController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'admin'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
+
+        // ============================================
+        // Pet Services moderation
+        // ============================================
         Route::get('/services', [AdminPetServiceController::class, 'index'])->name('services.index');
         Route::get('/services/{petService}', [AdminPetServiceController::class, 'show'])
             ->whereNumber('petService')->name('services.show');
@@ -14,4 +19,17 @@ Route::middleware(['auth:sanctum', 'admin'])
             ->whereNumber('petService')->name('services.respond');
         Route::delete('/services/{petService}', [AdminPetServiceController::class, 'destroy'])
             ->whereNumber('petService')->name('services.destroy');
+
+        // ============================================
+        // Reviews moderation
+        // ============================================
+        Route::prefix('reviews')->name('reviews.')->group(function () {
+            Route::get('/', [AdminReviewController::class, 'index'])->name('index');
+            Route::patch('/{review}/approve', [AdminReviewController::class, 'approve'])
+                ->whereNumber('review')->name('approve');
+            Route::patch('/{review}/reject', [AdminReviewController::class, 'reject'])
+                ->whereNumber('review')->name('reject');
+            Route::delete('/{review}', [AdminReviewController::class, 'destroy'])
+                ->whereNumber('review')->name('destroy');
+        });
     });
