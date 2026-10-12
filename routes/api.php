@@ -60,18 +60,30 @@ Route::get('/business-types',                [BusinessTypeController::class, 'in
 Route::get('/business-types/{businessType}', [BusinessTypeController::class, 'show']);
 
 // ---------- Public Browse: Product Categories ----------
+<<<<<<< HEAD
 Route::get('/product-categories',                    [ProductCategoryController::class, 'index']);
 Route::get('/product-categories/{productCategory}',  [ProductCategoryController::class, 'show']);
+=======
+Route::get('/product-categories',                   [ProductCategoryController::class, 'index']);
+Route::get('/product-categories/{productCategory}', [ProductCategoryController::class, 'show']);
+>>>>>>> Madushi
 
 // ---------- Public Browse: Products ----------
 Route::get('/products',           [ProductController::class, 'index']);
 Route::get('/products/{product}', [ProductController::class, 'show']);
 
 // ---------- Public Browse: Pet Sale Listings ----------
+<<<<<<< HEAD
 Route::get('/pet-sales',                      [PetSaleListingController::class, 'index']);
 Route::get('/pet-sales/{petSaleListing}',     [PetSaleListingController::class, 'show']);
 
 // ---------- AI Chatbot (works for guests and authenticated users) ----------
+=======
+Route::get('/pet-sales',                  [PetSaleListingController::class, 'index']);
+Route::get('/pet-sales/{petSaleListing}', [PetSaleListingController::class, 'show']);
+
+// ---------- AI Chatbot ----------
+>>>>>>> Madushi
 Route::post('/chatbot/ask', [ChatbotController::class, 'ask'])->middleware('throttle:30,1');
 Route::get('/chatbot/conversations',                   [ChatbotController::class, 'conversations']);
 Route::get('/chatbot/conversations/{conversation}',    [ChatbotController::class, 'show']);
@@ -140,6 +152,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/businesses/{business}',  [BusinessController::class, 'destroy']);
 
     // ================= Member 3 — Products (seller CRUD) =================
+<<<<<<< HEAD
     Route::post('/products',           [ProductController::class, 'store']);
     Route::put('/products/{product}',  [ProductController::class, 'update']);
     Route::delete('/products/{product}', [ProductController::class, 'destroy']);
@@ -152,6 +165,20 @@ Route::middleware('auth:sanctum')->group(function () {
     /*
     |----------------------------------------------------------------------
     | ADMIN ROUTES (admin middleware)
+=======
+    Route::post('/products',             [ProductController::class, 'store']);
+    Route::put('/products/{product}',    [ProductController::class, 'update']);
+    Route::delete('/products/{product}', [ProductController::class, 'destroy']);
+
+    // ================= Member 3 — Pet Sales (seller CRUD) =================
+    Route::post('/pet-sales',                    [PetSaleListingController::class, 'store']);
+    Route::put('/pet-sales/{petSaleListing}',    [PetSaleListingController::class, 'update']);
+    Route::delete('/pet-sales/{petSaleListing}', [PetSaleListingController::class, 'destroy']);
+
+    /*
+    |----------------------------------------------------------------------
+    | ADMIN ROUTES
+>>>>>>> Madushi
     |----------------------------------------------------------------------
     */
     Route::middleware('admin')->prefix('admin')->group(function () {
@@ -229,7 +256,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
+<<<<<<< HEAD
 | Member 2 sub-route files (Lost Pets, Found Pets, Smart Matching, Maps)
+=======
+| Member 2 sub-route files
+>>>>>>> Madushi
 |--------------------------------------------------------------------------
 */
 require __DIR__.'/lost_pets.php';
