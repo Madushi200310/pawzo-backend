@@ -211,18 +211,93 @@ Route::delete('/chatbot/conversations/{conversation}', [ChatbotController::class
 Route::get('/business-types', [BusinessTypeController::class, 'index']);
 Route::get('/business-types/{businessType}', [BusinessTypeController::class, 'show']);
 
-// Product Categories (public browse)
-Route::get('/product-categories', [ProductCategoryController::class, 'index']);
-Route::get('/product-categories/{productCategory}', [ProductCategoryController::class, 'show']);
+    // ================= Member 3 — Products (seller CRUD) =================
+    Route::post('/products',             [ProductController::class, 'store']);
+    Route::put('/products/{product}',    [ProductController::class, 'update']);
+    Route::delete('/products/{product}', [ProductController::class, 'destroy']);
 
-// Products (public browse)
-Route::get('/products', [ProductController::class, 'index']);
-Route::get('/products/{product}', [ProductController::class, 'show']);
+    // ================= Member 3 — Pet Sales (seller CRUD) =================
+    Route::post('/pet-sales',                    [PetSaleListingController::class, 'store']);
+    Route::put('/pet-sales/{petSaleListing}',    [PetSaleListingController::class, 'update']);
+    Route::delete('/pet-sales/{petSaleListing}', [PetSaleListingController::class, 'destroy']);
 
-// Pet Sale Listings (public browse)
-Route::get('/pet-sales', [PetSaleListingController::class, 'index']);
-Route::get('/pet-sales/{petSaleListing}', [PetSaleListingController::class, 'show']);
+    /*
+    |----------------------------------------------------------------------
+    | ADMIN ROUTES
+    |----------------------------------------------------------------------
+    */
+    Route::middleware('admin')->prefix('admin')->group(function () {
 
+        // ===== Member 1 — Users =====
+        Route::get('/users',                 [AdminUserController::class, 'index']);
+        Route::get('/users/{user}',          [AdminUserController::class, 'show']);
+        Route::patch('/users/{user}/status', [AdminUserController::class, 'updateStatus']);
+        Route::delete('/users/{user}',       [AdminUserController::class, 'destroy']);
+        Route::get('/users/{user}/activity', [AdminUserController::class, 'activity']);
+
+        // ===== Member 1 — Pets =====
+        Route::get('/pets',                [AdminPetController::class, 'index']);
+        Route::get('/pets/{pet}',          [AdminPetController::class, 'show']);
+        Route::delete('/pets/{pet}',       [AdminPetController::class, 'destroy']);
+        Route::patch('/pets/{id}/restore', [AdminPetController::class, 'restore']);
+
+        // ===== Member 1 — Pet Reports =====
+        Route::get('/pet-reports',            [AdminPetController::class, 'reports']);
+        Route::patch('/pet-reports/{report}', [AdminPetController::class, 'reviewReport']);
+
+        // ===== Member 3 — Business Verifications =====
+        Route::prefix('business-verifications')->group(function () {
+            Route::get('/',       [BusinessVerificationController::class, 'index']);
+            Route::get('/stats',  [BusinessVerificationController::class, 'stats']);
+            Route::get('/{business}', [BusinessVerificationController::class, 'show']);
+            Route::post('/{business}/approve', [BusinessVerificationController::class, 'approve']);
+            Route::post('/{business}/reject',  [BusinessVerificationController::class, 'reject']);
+        });
+
+        // ===== Member 3 — Business Types CRUD =====
+        Route::prefix('business-types')->group(function () {
+            Route::get('/',                  [BusinessTypeController::class, 'index']);
+            Route::post('/',                 [BusinessTypeController::class, 'store']);
+            Route::get('/{businessType}',    [BusinessTypeController::class, 'show']);
+            Route::put('/{businessType}',    [BusinessTypeController::class, 'update']);
+            Route::delete('/{businessType}', [BusinessTypeController::class, 'destroy']);
+        });
+
+        // ===== Member 3 — Product Categories =====
+        Route::prefix('product-categories')->group(function () {
+            Route::get('/',                     [ProductCategoryController::class, 'index']);
+            Route::post('/',                    [ProductCategoryController::class, 'store']);
+            Route::put('/{productCategory}',    [ProductCategoryController::class, 'update']);
+            Route::delete('/{productCategory}', [ProductCategoryController::class, 'destroy']);
+        });
+
+        // ===== Member 3 — Product Approval =====
+        Route::prefix('products')->group(function () {
+            Route::get('/',                   [ProductApprovalController::class, 'index']);
+            Route::get('/stats',              [ProductApprovalController::class, 'stats']);
+            Route::get('/{product}',          [ProductApprovalController::class, 'show']);
+            Route::post('/{product}/approve', [ProductApprovalController::class, 'approve']);
+            Route::post('/{product}/reject',  [ProductApprovalController::class, 'reject']);
+        });
+
+        // ===== Member 3 — Pet Sale Approval =====
+        Route::prefix('pet-sales')->group(function () {
+            Route::get('/',                          [PetSaleListingApprovalController::class, 'index']);
+            Route::get('/stats',                     [PetSaleListingApprovalController::class, 'stats']);
+            Route::get('/{petSaleListing}',          [PetSaleListingApprovalController::class, 'show']);
+            Route::post('/{petSaleListing}/approve', [PetSaleListingApprovalController::class, 'approve']);
+            Route::post('/{petSaleListing}/reject',  [PetSaleListingApprovalController::class, 'reject']);
+        });
+
+        // ===== Member 3 — Chatbot Monitoring =====
+        Route::prefix('chatbot')->group(function () {
+            Route::get('/conversations',                   [ChatbotMonitoringController::class, 'index']);
+            Route::get('/conversations/{conversation}',    [ChatbotMonitoringController::class, 'show']);
+            Route::delete('/conversations/{conversation}', [ChatbotMonitoringController::class, 'destroy']);
+            Route::get('/stats',                           [ChatbotMonitoringController::class, 'stats']);
+        });
+    });
+});
 // Reviews (public list — approved only)
 Route::get('/reviews', [ReviewController::class, 'index']);
 
@@ -234,9 +309,13 @@ Route::delete('/chatbot/conversations/{conversation}', [ChatbotController::class
 
 /*
 |--------------------------------------------------------------------------
-| PROTECTED ROUTES (Sanctum)
+| Member 2 sub-route files
 |--------------------------------------------------------------------------
 */
+require __DIR__.'/lost_pets.php';
+require __DIR__.'/found_pets.php';
+require __DIR__.'/smart_matching.php';
+require __DIR__.'/maps.php';
 
 Route::middleware('auth:sanctum')->group(function () {
 

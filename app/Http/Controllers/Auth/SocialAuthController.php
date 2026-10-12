@@ -12,16 +12,10 @@ use Laravel\Socialite\Facades\Socialite;
 
 class SocialAuthController extends Controller
 {
-<<<<<<< HEAD
-    /**
-     * Redirect the user to Google's OAuth consent screen.
-     */
-=======
     // ============================================================
     //                       GOOGLE
     // ============================================================
 
->>>>>>> Madushi
     public function redirectToGoogle(): JsonResponse
     {
         $url = Socialite::driver('google')
@@ -35,12 +29,6 @@ class SocialAuthController extends Controller
         ]);
     }
 
-<<<<<<< HEAD
-    /**
-     * Handle Google's callback.
-     */
-=======
->>>>>>> Madushi
     public function handleGoogleCallback(Request $request): JsonResponse
     {
         try {
@@ -52,55 +40,31 @@ class SocialAuthController extends Controller
             ], 401);
         }
 
-<<<<<<< HEAD
         // Find by google_id first, then by email
-=======
->>>>>>> Madushi
         $user = User::where('google_id', $googleUser->getId())->first()
             ?? User::where('email', $googleUser->getEmail())->first();
 
         if (! $user) {
-<<<<<<< HEAD
-            // Create a fresh user
-            $user = User::create([
-                'name'              => $googleUser->getName() ?: 'Google User',
-                'email'             => $googleUser->getEmail(),
-                'password'          => Hash::make(Str::random(32)), // random, login via Google only
-=======
+            // Create a fresh user (email already verified by Google)
             $user = User::create([
                 'name'              => $googleUser->getName() ?: 'Google User',
                 'email'             => $googleUser->getEmail(),
                 'password'          => Hash::make(Str::random(32)),
->>>>>>> Madushi
                 'google_id'         => $googleUser->getId(),
                 'avatar'            => $googleUser->getAvatar(),
                 'role'              => 'user',
                 'is_active'         => true,
-<<<<<<< HEAD
-                'email_verified_at' => now(), // Google already verified the email
-            ]);
-        } else {
-            // Link the Google account if not already linked
-            if (! $user->google_id) {
-                $user->update([
-                    'google_id' => $googleUser->getId(),
-                    'avatar'    => $user->avatar ?? $googleUser->getAvatar(),
-                ]);
-            }
-        }
-
-        // Block deactivated accounts
-=======
                 'email_verified_at' => now(),
             ]);
         } elseif (! $user->google_id) {
+            // Link the Google account to an existing user
             $user->update([
                 'google_id' => $googleUser->getId(),
                 'avatar'    => $user->avatar ?? $googleUser->getAvatar(),
             ]);
         }
 
->>>>>>> Madushi
+        // Block deactivated accounts
         if (! $user->is_active) {
             return response()->json([
                 'message' => 'Your account has been deactivated. Please contact support.',
@@ -115,8 +79,6 @@ class SocialAuthController extends Controller
             'token'   => $token,
         ]);
     }
-<<<<<<< HEAD
-=======
 
     // ============================================================
     //                      FACEBOOK
@@ -150,6 +112,7 @@ class SocialAuthController extends Controller
             ?? User::where('email', $fbUser->getEmail())->first();
 
         if (! $user) {
+            // Create a fresh user (email already verified by Facebook)
             $user = User::create([
                 'name'              => $fbUser->getName() ?: 'Facebook User',
                 'email'             => $fbUser->getEmail(),
@@ -161,12 +124,14 @@ class SocialAuthController extends Controller
                 'email_verified_at' => now(),
             ]);
         } elseif (! $user->facebook_id) {
+            // Link the Facebook account to an existing user
             $user->update([
                 'facebook_id' => $fbUser->getId(),
                 'avatar'      => $user->avatar ?? $fbUser->getAvatar(),
             ]);
         }
 
+        // Block deactivated accounts
         if (! $user->is_active) {
             return response()->json([
                 'message' => 'Your account has been deactivated. Please contact support.',
@@ -181,5 +146,4 @@ class SocialAuthController extends Controller
             'token'   => $token,
         ]);
     }
->>>>>>> Madushi
 }
