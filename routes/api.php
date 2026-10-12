@@ -176,3 +176,9 @@ require __DIR__.'/stray_reports.php';
 
 // Notifications routes
 require __DIR__.'/notifications.php';
+
+// Pet Services routes
+require __DIR__.'/services.php';
+
+// Admin routes
+require __DIR__.'/admin.php';
