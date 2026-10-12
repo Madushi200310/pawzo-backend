@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('facebook_id')->nullable()->unique()->after('google_id');
 
             // Social-login users have no password
+            // Social-login users have no password.
             $table->string('password')->nullable()->change();
         });
     }
@@ -49,3 +50,4 @@ return new class extends Migration
         });
     }
 };
+
