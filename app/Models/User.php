@@ -15,7 +15,6 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
-    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -59,9 +58,6 @@ class User extends Authenticatable
         ];
     }
 
-        ];
-    }
-
     // ==================== HELPERS ====================
 
     /**
@@ -72,7 +68,7 @@ class User extends Authenticatable
         return $this->role === 'admin';
     }
 
-    // ---------- Relationships ----------
+    // ==================== MEMBER 1 — RELATIONSHIPS ====================
 
     /**
      * Pets owned by this user.
@@ -114,7 +110,7 @@ class User extends Authenticatable
         return $this->hasMany(PetReport::class, 'reviewed_by');
     }
 
-    // ---------- Admin helpers ----------
+    // ==================== MEMBER 1 — ADMIN HELPERS ====================
 
     /**
      * Count pets belonging to this user (including soft-deleted).
@@ -138,7 +134,9 @@ class User extends Authenticatable
     public function vaccinationsCount(): int
     {
         return \App\Models\Vaccination::whereIn('pet_id', $this->pets()->withTrashed()->pluck('id'))->count();
-    // ==================== RELATIONSHIPS ====================
+    }
+
+    // ==================== MEMBER 3 — RELATIONSHIPS ====================
 
     /**
      * Businesses owned by this user.
@@ -148,26 +146,35 @@ class User extends Authenticatable
         return $this->hasMany(Business::class);
     }
 
-    public function products(): HasMany
-{
-    return $this->hasMany(Product::class);
-}
-
-public function productCategories(): HasMany  // if you want user-specific
-{
-    return $this->hasMany(ProductCategory::class);
-}
-
-public function petSaleListings(): HasMany
-{
-    return $this->hasMany(PetSaleListing::class);
-}
-
     /**
      * Businesses approved by this user (as admin).
      */
     public function approvedBusinesses(): HasMany
     {
         return $this->hasMany(Business::class, 'approved_by');
+    }
+
+    /**
+     * Products owned by this user.
+     */
+    public function products(): HasMany
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    /**
+     * Product categories created by this user.
+     */
+    public function productCategories(): HasMany
+    {
+        return $this->hasMany(ProductCategory::class);
+    }
+
+    /**
+     * Pet sale listings owned by this user.
+     */
+    public function petSaleListings(): HasMany
+    {
+        return $this->hasMany(PetSaleListing::class);
     }
 }

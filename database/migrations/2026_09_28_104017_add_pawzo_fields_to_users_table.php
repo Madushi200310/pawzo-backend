@@ -20,7 +20,6 @@ return new class extends Migration
             $table->string('facebook_id')->nullable()->unique()->after('google_id');
 
             // Social-login users have no password
-            // Social-login users have no password.
             $table->string('password')->nullable()->change();
         });
     }
@@ -30,7 +29,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Remove unique indexes before dropping their columns.
+        // Drop unique indexes before dropping their columns
         Schema::table('users', function (Blueprint $table) {
             $table->dropUnique(['google_id']);
             $table->dropUnique(['facebook_id']);
@@ -49,5 +48,4 @@ return new class extends Migration
             $table->string('password')->nullable(false)->change();
         });
     }
-};
 };
