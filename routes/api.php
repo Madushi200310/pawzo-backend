@@ -136,6 +136,28 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user());
     Route::post('/logout', [LoginController::class, 'logout']);
 
+    // Pet Sale Listings (seller CRUD)
+    Route::post('/pet-sales', [PetSaleListingController::class, 'store']);
+    Route::put('/pet-sales/{petSaleListing}', [PetSaleListingController::class, 'update']);
+    Route::delete('/pet-sales/{petSaleListing}', [PetSaleListingController::class, 'destroy']);
+
+    // Admin Pet Sale Approval
+    Route::prefix('admin/pet-sales')->group(function () {
+        Route::get('/',                     [PetSaleListingApprovalController::class, 'index']);
+        Route::get('/stats',                [PetSaleListingApprovalController::class, 'stats']);
+        Route::get('/{petSaleListing}',     [PetSaleListingApprovalController::class, 'show']);
+        Route::post('/{petSaleListing}/approve', [PetSaleListingApprovalController::class, 'approve']);
+        Route::post('/{petSaleListing}/reject',  [PetSaleListingApprovalController::class, 'reject']);
+    });
+
+    // Admin Chatbot Monitoring
+    Route::prefix('admin/chatbot')->group(function () {
+        Route::get('/conversations',                    [ChatbotMonitoringController::class, 'index']);
+        Route::get('/conversations/{conversation}',     [ChatbotMonitoringController::class, 'show']);
+        Route::delete('/conversations/{conversation}',  [ChatbotMonitoringController::class, 'destroy']);
+        Route::get('/stats',                            [ChatbotMonitoringController::class, 'stats']);
+    });
+
     // === Business Verification (user-side) ===
     Route::get('/businesses', [BusinessController::class, 'index']);
     Route::post('/businesses', [BusinessController::class, 'store']);
@@ -161,6 +183,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |----------------------------------------------------------------------
+    | Member 3 — ADMIN Product Categories
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('admin/product-categories')->group(function () {
+        Route::get('/',                   [ProductCategoryController::class, 'index']);
+        Route::post('/',                  [ProductCategoryController::class, 'store']);
+        Route::put('/{productCategory}',    [ProductCategoryController::class, 'update']);
+        Route::delete('/{productCategory}', [ProductCategoryController::class, 'destroy']);
+    });
     | ADMIN ROUTES — protected with 'admin' middleware
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -233,6 +264,44 @@ Route::middleware('auth:sanctum')->group(function () {
     | ADMIN ROUTES (admin middleware)
     |----------------------------------------------------------------------
     */
+    Route::prefix('admin/products')->group(function () {
+        Route::get('/',                  [ProductApprovalController::class, 'index']);
+        Route::get('/stats',             [ProductApprovalController::class, 'stats']);
+        Route::get('/{product}',         [ProductApprovalController::class, 'show']);
+        Route::post('/{product}/approve', [ProductApprovalController::class, 'approve']);
+        Route::post('/{product}/reject',  [ProductApprovalController::class, 'reject']);
+    });
+});
+
+// Member 02 - Lost Pets routes
+require __DIR__.'/lost_pets.php';
+
+// Pet Rentals routes
+require __DIR__.'/rentals.php';
+
+// Found Pets routes
+require __DIR__.'/found_pets.php';
+
+// Smart Matching routes
+require __DIR__.'/smart_matching.php';
+
+// Maps / Locations routes
+require __DIR__.'/maps.php';
+
+// Stray Reports routes
+require __DIR__.'/stray_reports.php';
+
+// Notifications routes
+require __DIR__.'/notifications.php';
+
+// Pet Services routes
+require __DIR__.'/services.php';
+
+// Admin routes
+require __DIR__.'/admin.php';
+
+// Reviews routes
+require __DIR__.'/reviews.php';
     Route::middleware('admin')->prefix('admin')->group(function () {
 
         // Admin - Dashboard
