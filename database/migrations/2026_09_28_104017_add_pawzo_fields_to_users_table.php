@@ -30,7 +30,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Remove unique indexes before dropping their columns.
+        // Drop unique indexes before dropping their columns
         Schema::table('users', function (Blueprint $table) {
             $table->dropUnique(['google_id']);
             $table->dropUnique(['facebook_id']);
