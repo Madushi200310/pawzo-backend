@@ -7,6 +7,7 @@
     <testsuites>
         <testsuite name="Smart Matching">
             <file>tests/Feature/SmartMatchingTest.php</file>
+            <file>tests/Feature/SmartMatchingNotificationsTest.php</file>
         </testsuite>
     </testsuites>
 
