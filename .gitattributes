@@ -6,6 +6,20 @@
 *.md diff=markdown
 *.php diff=php
 
+# ----- Merge strategies (prevents conflict-marker corruption) -----
+# For lock-like or config files, "ours" keeps the current branch's version.
+# For multi-author files (routes, migrations), "union" keeps both sides.
+# Note: union can duplicate lines, but ALWAYS keeps syntax valid.
+
+composer.lock       merge=ours
+package-lock.json   merge=ours
+
+database/migrations/*.php   merge=union
+app/Models/*.php            merge=union
+config/*.php                merge=union
+.env.example                merge=union
+
+# ----- Export-ignore (files not needed in release archives) -----
 /.github export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore

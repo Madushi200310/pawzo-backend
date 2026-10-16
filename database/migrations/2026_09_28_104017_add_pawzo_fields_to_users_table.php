@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
@@ -19,18 +16,12 @@ return new class extends Migration
             $table->string('google_id')->nullable()->unique()->after('avatar');
             $table->string('facebook_id')->nullable()->unique()->after('google_id');
 
-            // Social-login users have no password
-            // Social-login users have no password.
             $table->string('password')->nullable()->change();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        // Remove unique indexes before dropping their columns.
         Schema::table('users', function (Blueprint $table) {
             $table->dropUnique(['google_id']);
             $table->dropUnique(['facebook_id']);
@@ -50,5 +41,3 @@ return new class extends Migration
         });
     }
 };
-};
-
