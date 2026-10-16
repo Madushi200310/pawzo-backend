@@ -25,5 +25,9 @@ class ReviewsServiceProvider extends ServiceProvider
         $this->loadRoutesFrom(
             base_path('routes/service-bookings.php')
         );
+
+        $this->loadRoutesFrom(
+            base_path('routes/marketplace-orders.php')
+        );
     }
 }

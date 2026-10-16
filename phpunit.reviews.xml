@@ -7,6 +7,7 @@
         <testsuite name="Reviews">
             <file>tests/Feature/ReviewsTest.php</file>
             <file>tests/Feature/ServiceBookingReviewsTest.php</file>
+            <file>tests/Feature/MarketplaceOrderReviewsTest.php</file>
         </testsuite>
     </testsuites>
     <php>
