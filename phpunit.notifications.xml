@@ -8,6 +8,7 @@
         <testsuite name="Notifications">
             <file>tests/Feature/NotificationsTest.php</file>
             <file>tests/Feature/BusinessVerificationNotificationsTest.php</file>
+            <file>tests/Feature/ReminderNotificationsTest.php</file>
         </testsuite>
     </testsuites>
 
