@@ -7,6 +7,7 @@
     <testsuites>
         <testsuite name="Pet Rentals">
             <file>tests/Feature/PetRentalsTest.php</file>
+            <file>tests/Feature/PetRentalRequestWorkflowTest.php</file>
         </testsuite>
     </testsuites>
 
