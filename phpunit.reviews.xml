@@ -8,6 +8,7 @@
             <file>tests/Feature/ReviewsTest.php</file>
             <file>tests/Feature/ServiceBookingReviewsTest.php</file>
             <file>tests/Feature/MarketplaceOrderReviewsTest.php</file>
+            <file>tests/Feature/AdminTransactionsTest.php</file>
         </testsuite>
     </testsuites>
     <php>
