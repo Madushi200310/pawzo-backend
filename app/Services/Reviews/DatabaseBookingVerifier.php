@@ -2,18 +2,13 @@
 
 namespace App\Services\Reviews;
 
+use App\Models\Business;
+use App\Models\PetService;
+use App\Models\ServiceBooking;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
-/**
- * Verifies reviews against real bookings/orders tables.
- *
- * The verifier is defensive: if neither table exists, it returns FALSE
- * (so reviews are blocked until Member 3 ships the tables). This means
- * flipping config('reviews.allow_unverified') to false is enough to turn
- * real verification on — no code change required.
- */
 class DatabaseBookingVerifier implements BookingVerifier
 {
     public function userHasVerifiedBooking(
@@ -22,39 +17,49 @@ class DatabaseBookingVerifier implements BookingVerifier
         int $reviewableId,
         string $bookingReference,
     ): bool {
-        if ($bookingReference === '') {
+        if (
+            ! $user->is_active
+            || $user->email_verified_at === null
+            || $reviewableId < 1
+            || ! Str::isUuid($bookingReference)
+        ) {
             return false;
         }
 
-        $bookingsTable = (string) config('reviews.bookings_table', 'bookings');
-        $ordersTable = (string) config('reviews.orders_table', 'orders');
-
-        // Try bookings first (services).
-        if (Schema::hasTable($bookingsTable)) {
-            $exists = DB::table($bookingsTable)
-                ->where('id', $bookingReference)
-                ->where('user_id', $user->id)
-                ->where('status', 'completed')
-                ->exists();
-
-            if ($exists) {
-                return true;
-            }
+        if (
+            ! in_array(
+                $reviewableType,
+                [PetService::class, Business::class],
+                true,
+            )
+        ) {
+            // Product and pet-sale reviews require a real order flow.
+            return false;
         }
 
-        // Then orders (products).
-        if (Schema::hasTable($ordersTable)) {
-            $exists = DB::table($ordersTable)
-                ->where('id', $bookingReference)
-                ->where('user_id', $user->id)
-                ->where('status', 'completed')
-                ->exists();
-
-            if ($exists) {
-                return true;
-            }
+        if (! Schema::hasTable('service_bookings')) {
+            return false;
         }
 
-        return false;
+        $query = ServiceBooking::query()
+            ->where('reference', $bookingReference)
+            ->where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->whereNotNull('completed_at')
+            ->where('completed_at', '<=', now())
+            ->where('scheduled_at', '<=', now())
+            ->whereNull('cancelled_at');
+
+        if ($reviewableType === PetService::class) {
+            $query->where('pet_service_id', $reviewableId);
+        } else {
+            $query->whereHas('service', function ($service) use (
+                $reviewableId,
+            ) {
+                $service->where('business_id', $reviewableId);
+            });
+        }
+
+        return $query->exists();
     }
 }
