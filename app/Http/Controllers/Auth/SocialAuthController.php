@@ -6,144 +6,162 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
+use Throwable;
 
 class SocialAuthController extends Controller
 {
-    // ============================================================
-    //                       GOOGLE
-    // ============================================================
-
     public function redirectToGoogle(): JsonResponse
     {
-        $url = Socialite::driver('google')
-            ->stateless()
-            ->redirect()
-            ->getTargetUrl();
+        return $this->redirect('google', 'Google');
+    }
 
-        return response()->json([
-            'message'      => 'Redirect to Google',
-            'redirect_url' => $url,
-        ]);
+    public function redirectToFacebook(): JsonResponse
+    {
+        return $this->redirect('facebook', 'Facebook');
     }
 
     public function handleGoogleCallback(Request $request): JsonResponse
     {
-        try {
-            $googleUser = Socialite::driver('google')->stateless()->user();
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => 'Failed to authenticate with Google.',
-                'error'   => $e->getMessage(),
-            ], 401);
-        }
-
-        // Find by google_id first, then by email
-        $user = User::where('google_id', $googleUser->getId())->first()
-            ?? User::where('email', $googleUser->getEmail())->first();
-
-        if (! $user) {
-            // Create a fresh user (email already verified by Google)
-            $user = User::create([
-                'name'              => $googleUser->getName() ?: 'Google User',
-                'email'             => $googleUser->getEmail(),
-                'password'          => Hash::make(Str::random(32)),
-                'google_id'         => $googleUser->getId(),
-                'avatar'            => $googleUser->getAvatar(),
-                'role'              => 'user',
-                'is_active'         => true,
-                'email_verified_at' => now(),
-            ]);
-        } elseif (! $user->google_id) {
-            // Link the Google account to an existing user
-            $user->update([
-                'google_id' => $googleUser->getId(),
-                'avatar'    => $user->avatar ?? $googleUser->getAvatar(),
-            ]);
-        }
-
-        // Block deactivated accounts
-        if (! $user->is_active) {
-            return response()->json([
-                'message' => 'Your account has been deactivated. Please contact support.',
-            ], 403);
-        }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'message' => 'Login via Google successful.',
-            'user'    => $user->fresh(),
-            'token'   => $token,
-        ]);
+        return $this->callback('google', 'Google');
     }
 
-    // ============================================================
-    //                      FACEBOOK
-    // ============================================================
-
-    public function redirectToFacebook(): JsonResponse
+    public function handleFacebookCallback(Request $request): JsonResponse
     {
-        $url = Socialite::driver('facebook')
+        return $this->callback('facebook', 'Facebook');
+    }
+
+    private function redirect(string $provider, string $label): JsonResponse
+    {
+        $url = Socialite::driver($provider)
             ->stateless()
             ->redirect()
             ->getTargetUrl();
 
         return response()->json([
-            'message'      => 'Redirect to Facebook',
+            'message' => "Redirect to {$label}",
             'redirect_url' => $url,
         ]);
     }
 
-    public function handleFacebookCallback(Request $request): JsonResponse
+    private function unavailable(): JsonResponse
+    {
+        return response()->json([
+            'message' => 'This account is unavailable. Please contact support.',
+        ], 403);
+    }
+
+    private function callback(string $provider, string $label): JsonResponse
     {
         try {
-            $fbUser = Socialite::driver('facebook')->stateless()->user();
-        } catch (\Throwable $e) {
+            $socialUser = Socialite::driver($provider)
+                ->stateless()
+                ->user();
+        } catch (Throwable) {
             return response()->json([
-                'message' => 'Failed to authenticate with Facebook.',
-                'error'   => $e->getMessage(),
+                'message' => "Failed to authenticate with {$label}.",
             ], 401);
         }
 
-        $user = User::where('facebook_id', $fbUser->getId())->first()
-            ?? User::where('email', $fbUser->getEmail())->first();
+        $providerId = (string) $socialUser->getId();
+        $email = $socialUser->getEmail();
 
-        if (! $user) {
-            // Create a fresh user (email already verified by Facebook)
-            $user = User::create([
-                'name'              => $fbUser->getName() ?: 'Facebook User',
-                'email'             => $fbUser->getEmail(),
-                'password'          => Hash::make(Str::random(32)),
-                'facebook_id'       => $fbUser->getId(),
-                'avatar'            => $fbUser->getAvatar(),
-                'role'              => 'user',
-                'is_active'         => true,
-                'email_verified_at' => now(),
-            ]);
-        } elseif (! $user->facebook_id) {
-            // Link the Facebook account to an existing user
-            $user->update([
-                'facebook_id' => $fbUser->getId(),
-                'avatar'      => $user->avatar ?? $fbUser->getAvatar(),
-            ]);
-        }
-
-        // Block deactivated accounts
-        if (! $user->is_active) {
+        if ($providerId === '') {
             return response()->json([
-                'message' => 'Your account has been deactivated. Please contact support.',
-            ], 403);
+                'message' => 'The provider did not return a valid account ID.',
+            ], 422);
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $column = $provider === 'google' ? 'google_id' : 'facebook_id';
 
-        return response()->json([
-            'message' => 'Login via Facebook successful.',
-            'user'    => $user->fresh(),
-            'token'   => $token,
-        ]);
+        return DB::transaction(function () use (
+            $socialUser,
+            $providerId,
+            $email,
+            $column,
+            $label,
+        ) {
+            $user = User::query()
+                ->withTrashed()
+                ->where($column, $providerId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($user && ($user->trashed() || ! $user->is_active)) {
+                return $this->unavailable();
+            }
+
+            if (! $user) {
+                if (
+                    ! is_string($email)
+                    || ! filter_var($email, FILTER_VALIDATE_EMAIL)
+                ) {
+                    return response()->json([
+                        'message' => 'The provider did not return a valid email address.',
+                    ], 422);
+                }
+
+                $existing = User::query()
+                    ->withTrashed()
+                    ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($existing) {
+                    if ($existing->trashed() || ! $existing->is_active) {
+                        return $this->unavailable();
+                    }
+
+                    return response()->json([
+                        'message' => 'An account already uses this email. Please use its existing login method.',
+                        'error' => 'account_link_required',
+                    ], 409);
+                }
+
+                $user = new User([
+                    'name' => $socialUser->getName() ?: "{$label} User",
+                    'email' => $email,
+                    'password' => Hash::make(Str::random(64)),
+                    $column => $providerId,
+                    'avatar' => $socialUser->getAvatar(),
+                    'role' => 'user',
+                    'is_active' => true,
+                ]);
+
+                $user->forceFill([
+                    'email_verified_at' => now(),
+                ]);
+
+                $user->save();
+            }
+
+            if (
+                $user->email_verified_at === null
+                && is_string($email)
+                && strcasecmp($user->email, $email) === 0
+            ) {
+                $user->forceFill([
+                    'email_verified_at' => now(),
+                ])->save();
+            }
+
+            if ($user->email_verified_at === null) {
+                return response()->json([
+                    'message' => 'Please verify your email before logging in.',
+                    'email_not_verified' => true,
+                ], 403);
+            }
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'message' => "Login via {$label} successful.",
+                'user' => $user->fresh(),
+                'token' => $token,
+            ]);
+        });
     }
 }
