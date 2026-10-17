@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Services;
 
 use App\Models\PetService;
+use App\Rules\ListingCategoryValue;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -17,7 +18,12 @@ class ListPetServicesRequest extends FormRequest
     {
         return [
             'q' => ['sometimes', 'filled', 'string', 'max:100'],
-            'service_type' => ['sometimes', 'required', Rule::in(PetService::SERVICE_TYPES)],
+            'service_type' => [
+                'sometimes',
+                'required',
+                'string',
+                new ListingCategoryValue('service', activeOnly: false),
+            ],
             'status' => ['sometimes', 'required', Rule::in(PetService::STATUSES)],
             'location' => ['sometimes', 'filled', 'string', 'max:255'],
             'min_price' => ['sometimes', 'numeric', 'min:0'],

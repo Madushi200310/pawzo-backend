@@ -22,28 +22,16 @@ class ReviewsServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        $this->loadRoutesFrom(
-            base_path('routes/service-bookings.php')
-        );
-
-        $this->loadRoutesFrom(
-            base_path('routes/marketplace-orders.php')
-        );
-
-        $this->loadRoutesFrom(
-            base_path('routes/admin-transactions.php')
-        );
-
-        $this->loadRoutesFrom(
-            base_path('routes/complaints.php')
-        );
-
-        $this->loadRoutesFrom(
-            base_path('routes/admin-announcements.php')
-        );
-
-        $this->loadRoutesFrom(
-            base_path('routes/admin-audit.php')
-        );
+        foreach ([
+            'service-bookings.php',
+            'marketplace-orders.php',
+            'admin-transactions.php',
+            'complaints.php',
+            'admin-announcements.php',
+            'admin-audit.php',
+            'listing-categories.php',
+        ] as $file) {
+            $this->loadRoutesFrom(base_path('routes/'.$file));
+        }
     }
 }
