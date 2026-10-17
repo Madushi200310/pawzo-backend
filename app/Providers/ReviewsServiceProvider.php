@@ -30,6 +30,7 @@ class ReviewsServiceProvider extends ServiceProvider
             'admin-announcements.php',
             'admin-audit.php',
             'listing-categories.php',
+            'medication-schedules.php',
         ] as $file) {
             $this->loadRoutesFrom(base_path('routes/'.$file));
         }
