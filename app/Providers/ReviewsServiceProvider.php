@@ -31,6 +31,7 @@ class ReviewsServiceProvider extends ServiceProvider
             'admin-audit.php',
             'listing-categories.php',
             'medication-schedules.php',
+            'admin-marketplace-removal.php',
         ] as $file) {
             $this->loadRoutesFrom(base_path('routes/'.$file));
         }
