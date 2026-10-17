@@ -41,5 +41,9 @@ class ReviewsServiceProvider extends ServiceProvider
         $this->loadRoutesFrom(
             base_path('routes/admin-announcements.php')
         );
+
+        $this->loadRoutesFrom(
+            base_path('routes/admin-audit.php')
+        );
     }
 }
