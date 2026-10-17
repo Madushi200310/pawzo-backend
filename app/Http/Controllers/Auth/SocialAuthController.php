@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use GuzzleHttp\Exception\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
@@ -54,13 +56,65 @@ class SocialAuthController extends Controller
         ], 403);
     }
 
+    private function logProviderFailure(
+        string $provider,
+        Throwable $exception,
+    ): void {
+        $details = [
+            'provider' => $provider,
+            'exception_class' => get_class($exception),
+        ];
+
+        if ($exception instanceof RequestException) {
+            $response = $exception->getResponse();
+            $context = $exception->getHandlerContext();
+
+            $details['http_status'] = $response?->getStatusCode();
+            $details['curl_errno'] = $context['errno'] ?? null;
+
+            if ($response) {
+                $payload = json_decode(
+                    (string) $response->getBody(),
+                    true,
+                );
+
+                $error = is_array($payload)
+                    ? ($payload['error'] ?? null)
+                    : null;
+
+                $allowedErrors = [
+                    'invalid_client',
+                    'invalid_grant',
+                    'invalid_request',
+                    'unauthorized_client',
+                    'access_denied',
+                    'redirect_uri_mismatch',
+                ];
+
+                if (
+                    is_string($error)
+                    && in_array($error, $allowedErrors, true)
+                ) {
+                    $details['provider_error'] = $error;
+                }
+            }
+        }
+
+        Log::warning(
+            'Social login provider request failed',
+            $details,
+        );
+    }
+
     private function callback(string $provider, string $label): JsonResponse
     {
         try {
             $socialUser = Socialite::driver($provider)
                 ->stateless()
                 ->user();
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            $this->logProviderFailure($provider, $exception);
+
             return response()->json([
                 'message' => "Failed to authenticate with {$label}.",
             ], 401);
@@ -75,7 +129,9 @@ class SocialAuthController extends Controller
             ], 422);
         }
 
-        $column = $provider === 'google' ? 'google_id' : 'facebook_id';
+        $column = $provider === 'google'
+            ? 'google_id'
+            : 'facebook_id';
 
         return DB::transaction(function () use (
             $socialUser,
