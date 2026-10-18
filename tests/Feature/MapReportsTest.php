@@ -16,66 +16,97 @@ class MapReportsTest extends TestCase
 
     protected function setUp(): void
     {
+        if (
+            getenv('DB_CONNECTION') !== 'sqlite'
+            || getenv('DB_DATABASE') !== ':memory:'
+        ) {
+            throw new \RuntimeException(
+                'Use phpunit.maps.xml with SQLite :memory:.'
+            );
+        }
+
+        if (is_file(__DIR__.'/../../bootstrap/cache/config.php')) {
+            throw new \RuntimeException(
+                'Run php artisan config:clear first.'
+            );
+        }
+
         parent::setUp();
 
         $this->viewer = User::factory()->create([
-            'is_active'         => true,
+            'is_active' => true,
             'email_verified_at' => now(),
         ]);
     }
 
     private function endpoint(array $overrides = []): string
     {
-        return '/api/map/reports?'.http_build_query(array_replace([
-            'latitude'  => 7.142,
-            'longitude' => 80.096,
-        ], $overrides));
+        return '/api/map/reports?'.http_build_query(
+            array_replace([
+                'latitude' => 7.142,
+                'longitude' => 80.096,
+            ], $overrides)
+        );
     }
 
-    private function report(string $kind = 'lost', array $overrides = []): int
-    {
-        return (int) DB::table($kind.'_pet_reports')->insertGetId(array_replace([
-            'user_id'          => $this->viewer->id,
-            'pet_name'         => 'Map Test',
-            'pet_type'         => 'dog',
-            'gender'           => 'unknown',
-            'color'            => 'Brown',
-            'description'      => 'Map test report',
-            $kind.'_at'        => '2020-01-01 00:00:00',
-            'location_name'    => 'Nittambuwa',
-            'latitude'         => 7.142,
-            'longitude'        => 80.096,
-            'contact_name'     => 'Private Contact',
-            'contact_phone'    => '0771234567',
-            'whatsapp_number'  => '+94771234567',
-            'status'           => 'open',
-            'created_at'       => now(),
-            'updated_at'       => now(),
-        ], $overrides));
+    private function report(
+        string $kind = 'lost',
+        array $overrides = [],
+    ): int {
+        // Direct inserts avoid triggering Smart Matching observers.
+        return (int) DB::table($kind.'_pet_reports')->insertGetId(
+            array_replace([
+                'user_id' => $this->viewer->id,
+                'pet_name' => 'Map Test',
+                'pet_type' => 'dog',
+                'gender' => 'unknown',
+                'color' => 'Brown',
+                'description' => 'Map test report',
+                $kind.'_at' => '2020-01-01 00:00:00',
+                'location_name' => 'Nittambuwa',
+                'latitude' => 7.142,
+                'longitude' => 80.096,
+                'contact_name' => 'Private Contact',
+                'contact_phone' => '0771234567',
+                'whatsapp_number' => '+94771234567',
+                'status' => 'open',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ], $overrides)
+        );
     }
 
     public function test_guests_cannot_read_map_reports(): void
     {
-        $this->getJson($this->endpoint())->assertUnauthorized();
+        $this->getJson($this->endpoint())
+            ->assertUnauthorized();
     }
 
     public function test_unverified_and_inactive_viewers_are_blocked(): void
     {
-        $this->viewer->forceFill(['email_verified_at' => null])->save();
+        $this->viewer->forceFill([
+            'email_verified_at' => null,
+        ])->save();
+
         Sanctum::actingAs($this->viewer->fresh());
-        $this->getJson($this->endpoint())->assertForbidden();
+
+        $this->getJson($this->endpoint())
+            ->assertForbidden();
 
         $this->viewer->forceFill([
             'email_verified_at' => now(),
-            'is_active'         => false,
+            'is_active' => false,
         ])->save();
+
         Sanctum::actingAs($this->viewer->fresh());
-        $this->getJson($this->endpoint())->assertForbidden();
+
+        $this->getJson($this->endpoint())
+            ->assertForbidden();
     }
 
     public function test_geojson_combines_both_kinds_without_exposing_contact_or_account_fields(): void
     {
-        $lostId  = $this->report();
+        $lostId = $this->report();
         $foundId = $this->report('found');
 
         Sanctum::actingAs($this->viewer);
@@ -89,22 +120,47 @@ class MapReportsTest extends TestCase
             ->assertJsonCount(2, 'features');
 
         $ids = array_column($response->json('features'), 'id');
+
         $this->assertContains('lost:'.$lostId, $ids);
         $this->assertContains('found:'.$foundId, $ids);
 
         foreach ($response->json('features') as $feature) {
-            $this->assertSame('Point', $feature['geometry']['type']);
-            $this->assertEquals([80.096, 7.142], $feature['geometry']['coordinates']);
-            $this->assertEquals(0, $feature['properties']['distance_km']);
-            $this->assertSame('2020-01-01T00:00:00.000000Z', $feature['properties']['occurred_at']);
+            $this->assertSame(
+                'Point',
+                $feature['geometry']['type']
+            );
+
+            $this->assertEquals(
+                [80.096, 7.142],
+                $feature['geometry']['coordinates']
+            );
 
             $properties = $feature['properties'];
+
+            $this->assertEquals(0, $properties['distance_km']);
+
             $this->assertSame(
-                url('/api/'.$properties['kind'].'-pets/'.$properties['report_id']),
+                '2020-01-01T00:00:00.000000Z',
+                $properties['occurred_at']
+            );
+
+            $this->assertSame(
+                url(
+                    '/api/'.$properties['kind']
+                    .'-pets/'.$properties['report_id']
+                ),
                 $properties['details_url']
             );
 
-            foreach (['user_id', 'user', 'email', 'password', 'contact_name', 'contact_phone', 'whatsapp_number'] as $field) {
+            foreach ([
+                'user_id',
+                'user',
+                'email',
+                'password',
+                'contact_name',
+                'contact_phone',
+                'whatsapp_number',
+            ] as $field) {
                 $this->assertArrayNotHasKey($field, $properties);
             }
         }
@@ -116,7 +172,13 @@ class MapReportsTest extends TestCase
 
         $this->report('lost', ['latitude' => 7.18]);
         $nearest = $this->report('found');
-        $this->report('found', ['latitude' => 7.222, 'longitude' => 80.176]);
+
+        // Inside the bounding box but outside the 10 km circle.
+        $this->report('found', [
+            'latitude' => 7.222,
+            'longitude' => 80.176,
+        ]);
+
         $this->report('lost', ['latitude' => 9.66]);
 
         $this->getJson($this->endpoint())
@@ -149,19 +211,33 @@ class MapReportsTest extends TestCase
         Sanctum::actingAs($this->viewer);
 
         $this->report();
-        $cat    = $this->report('found', ['pet_type' => 'cat']);
-        $closed = $this->report('found', ['pet_type' => 'cat', 'status' => 'closed']);
+
+        $cat = $this->report('found', [
+            'pet_type' => 'cat',
+        ]);
+
+        $closed = $this->report('found', [
+            'pet_type' => 'cat',
+            'status' => 'closed',
+        ]);
 
         $this->getJson($this->endpoint())
             ->assertOk()
             ->assertJsonCount(2, 'features');
 
-        $this->getJson($this->endpoint(['kind' => 'found', 'pet_type' => 'cat']))
+        $this->getJson($this->endpoint([
+            'kind' => 'found',
+            'pet_type' => 'cat',
+        ]))
             ->assertOk()
             ->assertJsonCount(1, 'features')
             ->assertJsonPath('features.0.id', 'found:'.$cat);
 
-        $this->getJson($this->endpoint(['kind' => 'found', 'pet_type' => 'cat', 'status' => 'closed']))
+        $this->getJson($this->endpoint([
+            'kind' => 'found',
+            'pet_type' => 'cat',
+            'status' => 'closed',
+        ]))
             ->assertOk()
             ->assertJsonCount(1, 'features')
             ->assertJsonPath('features.0.id', 'found:'.$closed);
@@ -171,13 +247,31 @@ class MapReportsTest extends TestCase
     {
         Sanctum::actingAs($this->viewer);
 
-        $inactive   = User::factory()->create(['is_active' => false]);
-        $unverified = User::factory()->unverified()->create(['is_active' => true]);
-        $other      = User::factory()->create(['is_active' => true]);
+        $inactive = User::factory()->create([
+            'is_active' => false,
+            'email_verified_at' => now(),
+        ]);
 
-        $this->report('lost', ['user_id' => $inactive->id]);
-        $this->report('found', ['user_id' => $unverified->id]);
-        $visible = $this->report('found', ['user_id' => $other->id]);
+        $unverified = User::factory()->unverified()->create([
+            'is_active' => true,
+        ]);
+
+        $other = User::factory()->create([
+            'is_active' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        $this->report('lost', [
+            'user_id' => $inactive->id,
+        ]);
+
+        $this->report('found', [
+            'user_id' => $unverified->id,
+        ]);
+
+        $visible = $this->report('found', [
+            'user_id' => $other->id,
+        ]);
 
         $this->getJson($this->endpoint())
             ->assertOk()
@@ -230,13 +324,21 @@ class MapReportsTest extends TestCase
         Sanctum::actingAs($this->viewer);
 
         foreach ([179.99, -179.99] as $longitude) {
-            $this->report('lost', ['latitude' => 0, 'longitude' => $longitude]);
-            $this->report('found', ['latitude' => 0, 'longitude' => $longitude, 'status' => 'closed']);
+            $this->report('lost', [
+                'latitude' => 0,
+                'longitude' => $longitude,
+            ]);
+
+            $this->report('found', [
+                'latitude' => 0,
+                'longitude' => $longitude,
+                'status' => 'closed',
+            ]);
         }
 
         foreach ([179.99, -179.99] as $longitude) {
             $this->getJson($this->endpoint([
-                'latitude'  => 0,
+                'latitude' => 0,
                 'longitude' => $longitude,
                 'radius_km' => 5,
             ]))
@@ -249,12 +351,19 @@ class MapReportsTest extends TestCase
     {
         Sanctum::actingAs($this->viewer);
 
-        $this->report('lost', ['latitude' => 89.999, 'longitude' => 150]);
-        $this->report('found', ['latitude' => -89.999, 'longitude' => -150]);
+        $this->report('lost', [
+            'latitude' => 89.999,
+            'longitude' => 150,
+        ]);
+
+        $this->report('found', [
+            'latitude' => -89.999,
+            'longitude' => -150,
+        ]);
 
         foreach ([90, -90] as $latitude) {
             $this->getJson($this->endpoint([
-                'latitude'  => $latitude,
+                'latitude' => $latitude,
                 'longitude' => 0,
                 'radius_km' => 1,
             ]))
@@ -262,10 +371,13 @@ class MapReportsTest extends TestCase
                 ->assertJsonCount(1, 'features');
         }
 
-        $this->report('found', ['latitude' => 0, 'longitude' => 0]);
+        $this->report('found', [
+            'latitude' => 0,
+            'longitude' => 0,
+        ]);
 
         $this->getJson($this->endpoint([
-            'latitude'  => 0,
+            'latitude' => 0,
             'longitude' => 0,
             'radius_km' => 0.1,
         ]))
@@ -277,14 +389,25 @@ class MapReportsTest extends TestCase
     {
         Sanctum::actingAs($this->viewer);
 
-        $inside = $this->report('lost', ['latitude' => 0.0089, 'longitude' => 0]);
-        $this->report('lost', ['latitude' => 0.0091, 'longitude' => 0]);
+        $inside = $this->report('lost', [
+            'latitude' => 0.0089,
+            'longitude' => 0,
+        ]);
 
-        $before     = DB::table('lost_pet_reports')->orderBy('id')->get()->toJson();
+        $this->report('lost', [
+            'latitude' => 0.0091,
+            'longitude' => 0,
+        ]);
+
+        $before = DB::table('lost_pet_reports')
+            ->orderBy('id')
+            ->get()
+            ->toJson();
+
         $matchCount = DB::table('pet_matches')->count();
 
         $this->getJson($this->endpoint([
-            'latitude'  => 0,
+            'latitude' => 0,
             'longitude' => 0,
             'radius_km' => 1,
         ]))
@@ -292,7 +415,17 @@ class MapReportsTest extends TestCase
             ->assertJsonCount(1, 'features')
             ->assertJsonPath('features.0.id', 'lost:'.$inside);
 
-        $this->assertSame($before, DB::table('lost_pet_reports')->orderBy('id')->get()->toJson());
-        $this->assertSame($matchCount, DB::table('pet_matches')->count());
+        $this->assertSame(
+            $before,
+            DB::table('lost_pet_reports')
+                ->orderBy('id')
+                ->get()
+                ->toJson()
+        );
+
+        $this->assertSame(
+            $matchCount,
+            DB::table('pet_matches')->count()
+        );
     }
 }

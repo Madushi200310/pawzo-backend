@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
@@ -19,14 +16,10 @@ return new class extends Migration
             $table->string('google_id')->nullable()->unique()->after('avatar');
             $table->string('facebook_id')->nullable()->unique()->after('google_id');
 
-            // Social-login users have no password
             $table->string('password')->nullable()->change();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {

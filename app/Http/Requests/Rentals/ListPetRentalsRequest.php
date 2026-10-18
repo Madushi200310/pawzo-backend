@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Rentals;
 
 use App\Models\PetRental;
+use App\Rules\ListingCategoryValue;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -17,7 +18,12 @@ class ListPetRentalsRequest extends FormRequest
     {
         return [
             'q' => ['sometimes', 'filled', 'string', 'max:100'],
-            'pet_type' => ['sometimes', 'required', Rule::in(PetRental::TYPES)],
+            'pet_type' => [
+                'sometimes',
+                'required',
+                'string',
+                new ListingCategoryValue('rental', activeOnly: false),
+            ],
             'gender' => ['sometimes', 'required', Rule::in(PetRental::GENDERS)],
             'status' => ['sometimes', 'required', Rule::in(PetRental::STATUSES)],
             'breed' => ['sometimes', 'filled', 'string', 'max:100'],

@@ -4,7 +4,9 @@ namespace App\Http\Requests\Reviews;
 
 use App\Models\Business;
 use App\Models\PetSaleListing;
+use App\Models\PetService;
 use App\Models\Product;
+use App\Models\Review;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -14,39 +16,76 @@ class SaveReviewRequest extends FormRequest
         'product' => Product::class,
         'business' => Business::class,
         'pet-sale' => PetSaleListing::class,
+        'service' => PetService::class,
     ];
 
     public function authorize(): bool
     {
-        $review = $this->route('review');
+        $user = $this->user();
 
-        if ($review instanceof \App\Models\Review) {
-            return $this->user()?->can('update', $review) ?? false;
+        if (
+            ! $user
+            || ! $user->is_active
+            || $user->email_verified_at === null
+        ) {
+            return false;
         }
 
-        return $this->user() !== null
-            && $this->user()->is_active
-            && $this->user()->email_verified_at !== null;
+        $review = $this->route('review');
+
+        if ($review instanceof Review) {
+            return $user->can('update', $review);
+        }
+
+        return true;
     }
 
     public function rules(): array
     {
         $review = $this->route('review');
-        $creating = ! ($review instanceof \App\Models\Review);
 
-        if ($creating) {
+        if (! ($review instanceof Review)) {
             return [
-                'type' => ['required', Rule::in(array_keys(self::TYPE_MAP))],
+                'type' => [
+                    'required',
+                    Rule::in(array_keys(self::TYPE_MAP)),
+                ],
                 'id' => ['required', 'integer', 'min:1'],
-                'booking_reference' => ['required', 'string', 'max:100'],
+                'booking_reference' => [
+                    'required',
+                    'string',
+                    'max:100',
+                ],
                 'rating' => ['required', 'integer', 'between:1,5'],
-                'comment' => ['sometimes', 'nullable', 'string', 'max:2000'],
+                'comment' => [
+                    'sometimes',
+                    'nullable',
+                    'string',
+                    'max:2000',
+                ],
+                'user_id' => ['prohibited'],
+                'reviewable_type' => ['prohibited'],
+                'reviewable_id' => ['prohibited'],
+                'is_approved' => ['prohibited'],
+                'approved_by' => ['prohibited'],
+                'approved_at' => ['prohibited'],
+                'rejection_reason' => ['prohibited'],
             ];
         }
 
         return [
-            'rating' => ['sometimes', 'required', 'integer', 'between:1,5'],
-            'comment' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'rating' => [
+                'sometimes',
+                'required',
+                'integer',
+                'between:1,5',
+            ],
+            'comment' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:2000',
+            ],
             'type' => ['prohibited'],
             'id' => ['prohibited'],
             'booking_reference' => ['prohibited'],
@@ -62,6 +101,7 @@ class SaveReviewRequest extends FormRequest
 
     public static function resolveType(string $alias): string
     {
-        return self::TYPE_MAP[$alias] ?? abort(422, 'Invalid reviewable type.');
+        return self::TYPE_MAP[$alias]
+            ?? abort(422, 'Invalid reviewable type.');
     }
 }

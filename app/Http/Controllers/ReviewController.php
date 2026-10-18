@@ -21,7 +21,7 @@ class ReviewController extends Controller
     ) {}
 
     /**
-     * Public list of reviews for a reviewable item.
+     * List reviews for a reviewable item.
      */
     public function index(ListReviewsRequest $request): JsonResponse
     {
@@ -32,9 +32,10 @@ class ReviewController extends Controller
         }
 
         $modelClass = SaveReviewRequest::resolveType($data['type']);
+
         $modelClass::findOrFail($data['id']);
 
-        $viewer  = $request->user();
+        $viewer = $request->user();
         $isAdmin = $viewer && $viewer->role === 'admin';
 
         $query = Review::query()
@@ -47,60 +48,74 @@ class ReviewController extends Controller
         } elseif (isset($data['status']) && $data['status'] !== 'all') {
             match ($data['status']) {
                 'approved' => $query->where('is_approved', true),
-                'pending'  => $query->where('is_approved', false)->whereNull('rejection_reason'),
+                'pending' => $query
+                    ->where('is_approved', false)
+                    ->whereNull('rejection_reason'),
                 'rejected' => $query->whereNotNull('rejection_reason'),
-                default    => null,
+                default => null,
             };
         }
 
         if (isset($data['min_rating'])) {
             $query->where('rating', '>=', $data['min_rating']);
         }
+
         if (isset($data['max_rating'])) {
             $query->where('rating', '<=', $data['max_rating']);
         }
+
         if (isset($data['q'])) {
             $term = '%'.mb_strtolower($data['q']).'%';
+
             $query->whereRaw('LOWER(comment) LIKE ?', [$term]);
         }
 
-        $avg   = (clone $query)->avg('rating');
+        $average = (clone $query)->avg('rating');
         $count = (clone $query)->count();
 
-        $paginated = $query->orderByDesc('created_at')
+        $paginated = $query
+            ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate((int) ($data['per_page'] ?? 15))
             ->withQueryString();
 
         return response()->json([
-            'average_rating' => round((float) ($avg ?? 0), 2),
-            'total_reviews'  => $count,
-            'reviews'        => ReviewResource::collection($paginated)->response()->getData(true),
+            'average_rating' => round((float) ($average ?? 0), 2),
+            'total_reviews' => $count,
+            'reviews' => ReviewResource::collection($paginated)
+                ->response()
+                ->getData(true),
         ]);
     }
 
     /**
      * List the current user's own reviews.
      */
-    public function mine(ListReviewsRequest $request): AnonymousResourceCollection
-    {
-        return ReviewResource::collection(
-            Review::with(['user:id,name'])
-                ->where('user_id', $request->user()->id)
-                ->orderByDesc('created_at')
-                ->paginate((int) ($request->validated()['per_page'] ?? 15))
-                ->withQueryString()
-        );
+    public function mine(
+        ListReviewsRequest $request
+    ): AnonymousResourceCollection {
+        $data = $request->validated();
+
+        $reviews = Review::query()
+            ->with('user:id,name')
+            ->where('user_id', $request->user()->id)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate((int) ($data['per_page'] ?? 15))
+            ->withQueryString();
+
+        return ReviewResource::collection($reviews);
     }
 
     /**
-     * Create a review (requires verified booking reference).
+     * Create a review after verifying the booking or order.
      */
     public function store(SaveReviewRequest $request): JsonResponse
     {
         $data = $request->validated();
 
         $modelClass = SaveReviewRequest::resolveType($data['type']);
+
         $modelClass::findOrFail($data['id']);
 
         $verified = $this->verifier->userHasVerifiedBooking(
@@ -113,7 +128,7 @@ class ReviewController extends Controller
         if (! $verified) {
             return response()->json([
                 'message' => 'You can only review items you have a verified booking/order for.',
-                'error'   => 'unverified_booking',
+                'error' => 'unverified_booking',
             ], 422);
         }
 
@@ -127,30 +142,46 @@ class ReviewController extends Controller
         );
 
         return (new ReviewResource($review))
-            ->additional(['message' => 'Review submitted. Awaiting admin approval.'])
+            ->additional([
+                'message' => 'Review submitted. Awaiting admin approval.',
+            ])
             ->response()
             ->setStatusCode(201);
     }
 
     /**
-     * Update own review.
+     * Update the current user's review.
      */
-    public function update(SaveReviewRequest $request, Review $review): ReviewResource
-    {
-        $updated = $this->reviews->update($review, $request->validated());
+    public function update(
+        SaveReviewRequest $request,
+        Review $review
+    ): ReviewResource {
+        Gate::authorize('update', $review);
+
+        $updated = $this->reviews->update(
+            $review,
+            $request->validated(),
+        );
 
         return (new ReviewResource($updated))
-            ->additional(['message' => 'Review updated. Awaiting re-approval.']);
+            ->additional([
+                'message' => 'Review updated. Awaiting re-approval.',
+            ]);
     }
 
     /**
-     * Delete own review.
+     * Delete a review when permitted by the policy.
      */
-    public function destroy(Request $request, Review $review): JsonResponse
-    {
+    public function destroy(
+        Request $request,
+        Review $review
+    ): JsonResponse {
         Gate::authorize('delete', $review);
+
         $this->reviews->delete($review);
 
-        return response()->json(['message' => 'Review deleted.']);
+        return response()->json([
+            'message' => 'Review deleted.',
+        ]);
     }
 }

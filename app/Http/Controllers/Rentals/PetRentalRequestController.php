@@ -19,7 +19,11 @@ class PetRentalRequestController extends Controller
         Gate::authorize('update', $petRental);
 
         return response()->json([
-            'data' => PetRentalRequestResource::collection($petRental->requests()->with('requester')->get()),
+            'data' => PetRentalRequestResource::collection(
+                $petRental->requests()
+                    ->with('requester')
+                    ->get()
+            ),
         ]);
     }
 
@@ -29,6 +33,7 @@ class PetRentalRequestController extends Controller
             ->with(['rental.photos', 'requester'])
             ->where('requester_id', request()->user()->id)
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->get();
 
         return response()->json([
@@ -36,25 +41,56 @@ class PetRentalRequestController extends Controller
         ]);
     }
 
-    public function store(CreatePetRentalRequestRequest $request, PetRental $petRental, PetRentalRequestService $service): JsonResponse
-    {
-        $petRentalRequest = $service->create($request->user(), $petRental, $request->validated());
+    public function store(
+        CreatePetRentalRequestRequest $request,
+        PetRental $petRental,
+        PetRentalRequestService $service,
+    ): JsonResponse {
+        $created = $service->create(
+            $request->user(),
+            $petRental,
+            $request->validated(),
+        );
 
-        return (new PetRentalRequestResource($petRentalRequest->load(['rental.photos', 'requester'])))
-            ->additional(['message' => 'Rental request created successfully.'])
+        return (new PetRentalRequestResource(
+            $created->load(['rental.photos', 'requester'])
+        ))
+            ->additional([
+                'message' => 'Rental request created successfully.',
+            ])
             ->response()
             ->setStatusCode(201);
     }
 
-    public function respond(RespondPetRentalRequestRequest $request, PetRentalRequest $petRentalRequest, PetRentalRequestService $service): JsonResponse
-    {
-        Gate::authorize('update', $petRentalRequest);
-        $ownerResponse = $request->validated('owner_response') ?? $request->validated('message');
-        $petRentalRequest = $service->respond($petRentalRequest, $request->validated('status'), $ownerResponse);
+    public function respond(
+        RespondPetRentalRequestRequest $request,
+        PetRentalRequest $petRentalRequest,
+        PetRentalRequestService $service,
+    ): JsonResponse {
+        $data = $request->validated();
+        $cancelling = $data['status'] === 'cancelled';
+
+        Gate::authorize(
+            $cancelling ? 'cancel' : 'update',
+            $petRentalRequest
+        );
+
+        $message = $cancelling
+            ? ($data['message'] ?? null)
+            : ($data['owner_response'] ?? $data['message'] ?? null);
+
+        $updated = $service->respond(
+            $petRentalRequest,
+            $data['status'],
+            $message,
+            $request->user(),
+        );
 
         return response()->json([
             'message' => 'Rental request updated successfully.',
-            'data' => new PetRentalRequestResource($petRentalRequest->load(['rental.photos', 'requester'])),
+            'data' => new PetRentalRequestResource(
+                $updated->load(['rental.photos', 'requester'])
+            ),
         ]);
     }
 }

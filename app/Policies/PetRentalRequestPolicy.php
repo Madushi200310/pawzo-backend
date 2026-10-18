@@ -7,13 +7,35 @@ use App\Models\User;
 
 class PetRentalRequestPolicy
 {
-    public function update(User $user, PetRentalRequest $petRentalRequest): bool
+    private function eligible(User $user): bool
     {
-        return (int) $petRentalRequest->rental->user_id === (int) $user->id;
+        return (bool) $user->is_active
+            && $user->email_verified_at !== null;
     }
 
-    public function delete(User $user, PetRentalRequest $petRentalRequest): bool
-    {
+    public function update(
+        User $user,
+        PetRentalRequest $petRentalRequest,
+    ): bool {
+        return $this->eligible($user)
+            && $petRentalRequest->rental !== null
+            && (int) $petRentalRequest->rental->user_id
+                === (int) $user->id;
+    }
+
+    public function cancel(
+        User $user,
+        PetRentalRequest $petRentalRequest,
+    ): bool {
+        return $this->eligible($user)
+            && (int) $petRentalRequest->requester_id
+                === (int) $user->id;
+    }
+
+    public function delete(
+        User $user,
+        PetRentalRequest $petRentalRequest,
+    ): bool {
         return $this->update($user, $petRentalRequest);
     }
 }

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Business;
 use App\Models\BusinessType;
+use App\Models\Notification;
 use App\Models\PetService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,13 +19,23 @@ class PetServicesTest extends TestCase
 
     protected function setUp(): void
     {
-        if (getenv('DB_CONNECTION') !== 'sqlite' || getenv('DB_DATABASE') !== ':memory:') {
-            throw new \RuntimeException('Use phpunit.services.xml with SQLite :memory:.');
+        if (
+            getenv('DB_CONNECTION') !== 'sqlite'
+            || getenv('DB_DATABASE') !== ':memory:'
+        ) {
+            throw new \RuntimeException(
+                'Use phpunit.services.xml with SQLite :memory:.'
+            );
         }
+
         if (is_file(__DIR__.'/../../bootstrap/cache/config.php')) {
-            throw new \RuntimeException('Run php artisan config:clear before these tests.');
+            throw new \RuntimeException(
+                'Run php artisan config:clear before these tests.'
+            );
         }
+
         parent::setUp();
+
         Storage::fake('public');
     }
 
@@ -35,7 +46,9 @@ class PetServicesTest extends TestCase
             'email_verified_at' => now(),
             'role' => 'user',
         ], $attributes))->refresh();
+
         Sanctum::actingAs($user);
+
         return $user;
     }
 
@@ -48,7 +61,9 @@ class PetServicesTest extends TestCase
     {
         return UploadedFile::fake()->createWithContent(
             'pet.'.$ext,
-            file_get_contents(base_path('tests/Fixtures/LostPets/pet.'.$ext))
+            file_get_contents(
+                base_path('tests/Fixtures/LostPets/pet.'.$ext)
+            )
         );
     }
 
@@ -84,20 +99,85 @@ class PetServicesTest extends TestCase
             'longitude' => '79.8487',
             'contact_phone' => '+94771234567',
             'contact_email' => 'hello@happypaws.lk',
-            'opening_hours' => ['mon_fri' => '9am-6pm', 'sat' => '9am-1pm'],
+            'opening_hours' => [
+                'mon_fri' => '9am-6pm',
+                'sat' => '9am-1pm',
+            ],
             'photos' => [$this->photo()],
         ], $overrides);
     }
 
-    private function createService(User $provider, array $overrides = []): PetService
-    {
+    private function createService(
+        User $provider,
+        array $overrides = [],
+    ): PetService {
         $this->approvedBusinessFor($provider);
+
         Sanctum::actingAs($provider);
 
-        $response = $this->postJson('/api/services', $this->payload($overrides))
-            ->assertCreated();
+        $response = $this->postJson(
+            '/api/services',
+            $this->payload($overrides)
+        )->assertCreated();
 
         return PetService::findOrFail($response->json('data.id'));
+    }
+
+    private function assertServiceNotification(
+        User $provider,
+        PetService $service,
+        string $type,
+        string $status,
+        ?string $reason = null,
+    ): Notification {
+        $notification = Notification::query()
+            ->where('user_id', $provider->id)
+            ->where('type', $type)
+            ->sole();
+
+        $this->assertSame(
+            (int) $service->id,
+            $notification->data['service_id']
+        );
+
+        $this->assertSame(
+            (int) $service->business_id,
+            $notification->data['business_id']
+        );
+
+        $this->assertSame(
+            $service->name,
+            $notification->data['service_name']
+        );
+
+        $this->assertSame(
+            $status,
+            $notification->data['status']
+        );
+
+        $this->assertSame(
+            $reason,
+            $notification->data['rejection_reason']
+        );
+
+        $this->assertSame(
+            '/api/services/mine',
+            $notification->action_url
+        );
+
+        $this->assertNull($notification->read_at);
+
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $provider->id,
+            'type' => Notification::TYPE_BUSINESS_APPROVED,
+        ]);
+
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $provider->id,
+            'type' => Notification::TYPE_BUSINESS_REJECTED,
+        ]);
+
+        return $notification;
     }
 
     public function test_guests_cannot_read_or_create_services(): void
@@ -109,12 +189,15 @@ class PetServicesTest extends TestCase
     public function test_unverified_accounts_are_blocked(): void
     {
         $this->login(['email_verified_at' => null]);
-        $this->postJson('/api/services', $this->payload())->assertForbidden();
+
+        $this->postJson('/api/services', $this->payload())
+            ->assertForbidden();
     }
 
     public function test_provider_without_approved_business_cannot_create_service(): void
     {
         $this->login();
+
         $this->postJson('/api/services', $this->payload())
             ->assertForbidden();
     }
@@ -124,10 +207,14 @@ class PetServicesTest extends TestCase
         $user = $this->login();
         $this->approvedBusinessFor($user);
 
-        $response = $this->postJson('/api/services', $this->payload())->assertCreated();
+        $response = $this->postJson(
+            '/api/services',
+            $this->payload()
+        )->assertCreated();
 
         $response->assertJsonPath('data.status', 'pending');
         $response->assertJsonPath('data.service_type', 'grooming');
+
         $this->assertDatabaseHas('pet_services', [
             'user_id' => $user->id,
             'status' => 'pending',
@@ -137,12 +224,17 @@ class PetServicesTest extends TestCase
     public function test_public_browse_shows_only_approved_services(): void
     {
         $provider = $this->login();
-        $pending = $this->createService($provider);
-        $approved = $this->createService($provider);
-        $approved->update(['status' => 'approved', 'approved_at' => now()]);
 
-        // Browse as another user
+        $this->createService($provider);
+        $approved = $this->createService($provider);
+
+        $approved->update([
+            'status' => 'approved',
+            'approved_at' => now(),
+        ]);
+
         $this->login();
+
         $this->getJson('/api/services')
             ->assertOk()
             ->assertJsonPath('meta.total', 1)
@@ -165,7 +257,9 @@ class PetServicesTest extends TestCase
         $pending = $this->createService($provider);
 
         $this->login();
-        $this->getJson("/api/services/{$pending->id}")->assertNotFound();
+
+        $this->getJson("/api/services/{$pending->id}")
+            ->assertNotFound();
     }
 
     public function test_owner_can_update_and_delete_own_listing(): void
@@ -173,11 +267,18 @@ class PetServicesTest extends TestCase
         $provider = $this->login();
         $service = $this->createService($provider);
 
-        $this->patchJson("/api/services/{$service->id}", ['name' => 'New Name'])
-            ->assertOk()->assertJsonPath('data.name', 'New Name');
+        $this->patchJson("/api/services/{$service->id}", [
+            'name' => 'New Name',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'New Name');
 
-        $this->deleteJson("/api/services/{$service->id}")->assertOk();
-        $this->assertDatabaseMissing('pet_services', ['id' => $service->id]);
+        $this->deleteJson("/api/services/{$service->id}")
+            ->assertOk();
+
+        $this->assertDatabaseMissing('pet_services', [
+            'id' => $service->id,
+        ]);
     }
 
     public function test_other_users_cannot_mutate_a_listing(): void
@@ -186,9 +287,13 @@ class PetServicesTest extends TestCase
         $service = $this->createService($provider);
 
         $this->login();
-        $this->patchJson("/api/services/{$service->id}", ['name' => 'Hacked'])
+
+        $this->patchJson("/api/services/{$service->id}", [
+            'name' => 'Hacked',
+        ])->assertForbidden();
+
+        $this->deleteJson("/api/services/{$service->id}")
             ->assertForbidden();
-        $this->deleteJson("/api/services/{$service->id}")->assertForbidden();
     }
 
     public function test_validation_rejects_bad_input(): void
@@ -196,15 +301,27 @@ class PetServicesTest extends TestCase
         $provider = $this->login();
         $this->approvedBusinessFor($provider);
 
-        $this->postJson('/api/services', [])->assertUnprocessable()
-            ->assertJsonValidationErrors(['name', 'service_type', 'description', 'price_from', 'photos']);
+        $this->postJson('/api/services', [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'name',
+                'service_type',
+                'description',
+                'price_from',
+                'photos',
+            ]);
 
         $this->postJson('/api/services', $this->payload([
             'service_type' => 'invalid_type',
             'price_from' => '-5',
             'latitude' => 91,
-        ]))->assertUnprocessable()
-            ->assertJsonValidationErrors(['service_type', 'price_from', 'latitude']);
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'service_type',
+                'price_from',
+                'latitude',
+            ]);
     }
 
     public function test_owner_and_status_cannot_be_injected(): void
@@ -217,8 +334,14 @@ class PetServicesTest extends TestCase
             'business_id' => 999,
             'status' => 'approved',
             'slug' => 'hacked',
-        ]))->assertUnprocessable()
-            ->assertJsonValidationErrors(['user_id', 'business_id', 'status', 'slug']);
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'user_id',
+                'business_id',
+                'status',
+                'slug',
+            ]);
     }
 
     public function test_photo_rules_are_enforced(): void
@@ -227,12 +350,24 @@ class PetServicesTest extends TestCase
         $this->approvedBusinessFor($provider);
 
         $this->postJson('/api/services', $this->payload([
-            'photos' => array_map(fn () => $this->photo(), range(1, 6)),
-        ]))->assertUnprocessable()->assertJsonValidationErrors('photos');
+            'photos' => array_map(
+                fn () => $this->photo(),
+                range(1, 6)
+            ),
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('photos');
 
-        $bad = UploadedFile::fake()->createWithContent('bad.png', '<?php echo "x";');
-        $this->postJson('/api/services', $this->payload(['photos' => [$bad]]))
-            ->assertUnprocessable()->assertJsonValidationErrors('photos.0');
+        $bad = UploadedFile::fake()->createWithContent(
+            'bad.png',
+            '<?php echo "x";'
+        );
+
+        $this->postJson('/api/services', $this->payload([
+            'photos' => [$bad],
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('photos.0');
     }
 
     public function test_admin_can_approve_and_notification_is_fired(): void
@@ -241,13 +376,31 @@ class PetServicesTest extends TestCase
         $service = $this->createService($provider);
 
         $this->admin();
-        $this->patchJson("/api/admin/services/{$service->id}", ['status' => 'approved'])
-            ->assertOk()->assertJsonPath('data.status', 'approved');
 
-        $this->assertDatabaseHas('notifications', [
-            'user_id' => $provider->id,
-            'type' => 'business_approved',
-        ]);
+        $url = "/api/admin/services/{$service->id}";
+
+        $this->patchJson($url, ['status' => 'approved'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'approved');
+
+        $this->assertNotNull($service->fresh()->approved_at);
+
+        $notification = $this->assertServiceNotification(
+            $provider,
+            $service,
+            Notification::TYPE_SERVICE_APPROVED,
+            'approved',
+        );
+
+        $this->assertSame(
+            'Service listing approved',
+            $notification->title
+        );
+
+        $this->patchJson($url, ['status' => 'approved'])
+            ->assertOk();
+
+        $this->assertDatabaseCount('notifications', 1);
     }
 
     public function test_admin_can_reject_with_reason(): void
@@ -256,15 +409,36 @@ class PetServicesTest extends TestCase
         $service = $this->createService($provider);
 
         $this->admin();
-        $this->patchJson("/api/admin/services/{$service->id}", [
+
+        $url = "/api/admin/services/{$service->id}";
+
+        $payload = [
             'status' => 'rejected',
             'rejection_reason' => 'License expired',
-        ])->assertOk()->assertJsonPath('data.status', 'rejected');
+        ];
 
-        $this->assertDatabaseHas('notifications', [
-            'user_id' => $provider->id,
-            'type' => 'business_rejected',
-        ]);
+        $this->patchJson($url, $payload)
+            ->assertOk()
+            ->assertJsonPath('data.status', 'rejected');
+
+        $this->assertNull($service->fresh()->approved_at);
+
+        $notification = $this->assertServiceNotification(
+            $provider,
+            $service,
+            Notification::TYPE_SERVICE_REJECTED,
+            'rejected',
+            'License expired',
+        );
+
+        $this->assertStringContainsString(
+            'License expired',
+            $notification->body
+        );
+
+        $this->patchJson($url, $payload)->assertOk();
+
+        $this->assertDatabaseCount('notifications', 1);
     }
 
     public function test_admin_can_remove_listing(): void
@@ -273,8 +447,49 @@ class PetServicesTest extends TestCase
         $service = $this->createService($provider);
 
         $this->admin();
-        $this->deleteJson("/api/admin/services/{$service->id}")->assertOk();
-        $this->assertDatabaseMissing('pet_services', ['id' => $service->id]);
+
+        $this->deleteJson("/api/admin/services/{$service->id}")
+            ->assertOk();
+
+        $this->assertDatabaseMissing('pet_services', [
+            'id' => $service->id,
+        ]);
+    }
+
+    public function test_admin_status_removal_notifies_owner_only_once(): void
+    {
+        $provider = $this->login();
+        $service = $this->createService($provider);
+
+        $service->update([
+            'status' => 'approved',
+            'approved_at' => now(),
+        ]);
+
+        $this->admin();
+
+        $url = "/api/admin/services/{$service->id}";
+
+        $this->patchJson($url, ['status' => 'removed'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'removed');
+
+        $fresh = $service->fresh();
+
+        $this->assertNotNull($fresh->removed_at);
+        $this->assertNull($fresh->approved_at);
+
+        $this->assertServiceNotification(
+            $provider,
+            $service,
+            Notification::TYPE_SERVICE_REMOVED,
+            'removed',
+        );
+
+        $this->patchJson($url, ['status' => 'removed'])
+            ->assertOk();
+
+        $this->assertDatabaseCount('notifications', 1);
     }
 
     public function test_non_admin_cannot_access_admin_endpoints(): void
@@ -283,33 +498,59 @@ class PetServicesTest extends TestCase
         $service = $this->createService($provider);
 
         $this->login();
-        $this->getJson('/api/admin/services')->assertForbidden();
-        $this->patchJson("/api/admin/services/{$service->id}", ['status' => 'approved'])
+
+        $this->getJson('/api/admin/services')
             ->assertForbidden();
+
+        $this->patchJson("/api/admin/services/{$service->id}", [
+            'status' => 'approved',
+        ])->assertForbidden();
     }
 
     public function test_filters_and_pagination_work(): void
     {
         $provider = $this->login();
-        $g = $this->createService($provider, ['name' => 'Groomer', 'service_type' => 'grooming', 'price_from' => '2000']);
-        $v = $this->createService($provider, ['name' => 'Vet', 'service_type' => 'veterinary', 'price_from' => '5000']);
 
-        $g->update(['status' => 'approved', 'approved_at' => now()]);
-        $v->update(['status' => 'approved', 'approved_at' => now()]);
+        $grooming = $this->createService($provider, [
+            'name' => 'Groomer',
+            'service_type' => 'grooming',
+            'price_from' => '2000',
+        ]);
+
+        // Any approved business can list any supported service type.
+        $veterinary = $this->createService($provider, [
+            'name' => 'Vet',
+            'service_type' => 'veterinary',
+            'price_from' => '5000',
+        ]);
+
+        $grooming->update([
+            'status' => 'approved',
+            'approved_at' => now(),
+        ]);
+
+        $veterinary->update([
+            'status' => 'approved',
+            'approved_at' => now(),
+        ]);
 
         $this->getJson('/api/services?service_type=grooming')
-            ->assertOk()->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('data.0.id', $g->id);
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $grooming->id);
 
         $this->getJson('/api/services?max_price=3000')
-            ->assertOk()->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('data.0.id', $g->id);
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $grooming->id);
 
         $this->getJson('/api/services?q=groomer')
-            ->assertOk()->assertJsonPath('meta.total', 1);
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1);
 
         $this->getJson('/api/services?per_page=1&page=2')
-            ->assertOk()->assertJsonCount(1, 'data')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
             ->assertJsonPath('meta.current_page', 2);
     }
 }

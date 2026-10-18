@@ -3,32 +3,29 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
-use App\Models\ProductCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
 {
     /**
-     * List products.
-     * Public: only approved + active.
-     * Authenticated + owner: also returns their own (approved or not).
+     * Public browsing returns approved, active products.
+     * Owners can request their own products with ?mine=1.
      */
     public function index(Request $request)
     {
         $query = Product::with(['category', 'user:id,name']);
 
-        // Filters
         if ($request->filled('category_id')) {
             $query->where('product_category_id', $request->category_id);
         }
 
         if ($request->filled('search')) {
-            $s = $request->search;
-            $query->where(function ($q) use ($s) {
-                $q->where('name', 'ILIKE', "%{$s}%")
-                  ->orWhere('description', 'ILIKE', "%{$s}%");
+            $search = $request->search;
+
+            $query->where(function ($query) use ($search) {
+                $query->where('name', 'ILIKE', "%{$search}%")
+                    ->orWhere('description', 'ILIKE', "%{$search}%");
             });
         }
 
@@ -40,37 +37,34 @@ class ProductController extends Controller
             $query->where('price', '<=', $request->max_price);
         }
 
-        // Auth: if the user is a seller, show them all their own too
         if ($request->user() && $request->boolean('mine')) {
             $query->where('user_id', $request->user()->id);
         } else {
             $query->approved();
         }
 
-        $products = $query->latest()->paginate(20);
-
-        return response()->json($products);
+        return response()->json($query->latest()->paginate(20));
     }
 
     /**
-     * Store a new product (seller).
+     * Submit a product for admin approval.
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
             'product_category_id' => 'required|exists:product_categories,id',
-            'name'                => 'required|string|max:255',
-            'description'         => 'nullable|string|max:5000',
-            'price'               => 'required|numeric|min:0',
-            'quantity'            => 'required|integer|min:0',
-            'brand'               => 'nullable|string|max:100',
-            'sku'                 => 'nullable|string|max:100',
-            'photos'              => 'nullable|array|max:5',
-            'photos.*'            => 'image|mimes:jpg,jpeg,png,webp|max:5120',
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:5000',
+            'price' => 'required|numeric|min:0',
+            'quantity' => 'required|integer|min:0',
+            'brand' => 'nullable|string|max:100',
+            'sku' => 'nullable|string|max:100',
+            'photos' => 'nullable|array|max:5',
+            'photos.*' => 'image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
 
-        // Store photos
         $photoPaths = [];
+
         if ($request->hasFile('photos')) {
             foreach ($request->file('photos') as $photo) {
                 $photoPaths[] = $photo->store('products', 'public');
@@ -78,77 +72,87 @@ class ProductController extends Controller
         }
 
         $product = Product::create([
-            'user_id'             => $request->user()->id,
+            'user_id' => $request->user()->id,
             'product_category_id' => $validated['product_category_id'],
-            'name'                => $validated['name'],
-            'description'         => $validated['description'] ?? null,
-            'price'               => $validated['price'],
-            'quantity'            => $validated['quantity'],
-            'brand'               => $validated['brand'] ?? null,
-            'sku'                 => $validated['sku'] ?? null,
-            'photos'              => $photoPaths,
-            'is_approved'         => false,
-            'is_active'           => true,
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'price' => $validated['price'],
+            'quantity' => $validated['quantity'],
+            'brand' => $validated['brand'] ?? null,
+            'sku' => $validated['sku'] ?? null,
+            'photos' => $photoPaths,
+            'is_approved' => false,
+            'is_active' => true,
         ]);
 
         return response()->json([
             'message' => 'Product submitted. Awaiting admin approval.',
-            'data'    => $product->load('category'),
+            'data' => $product->load('category'),
         ], 201);
     }
 
     /**
-     * Show a single product.
+     * Owners and admins can view unpublished products.
+     * Everyone else can only view approved, active products.
      */
     public function show(Request $request, Product $product)
     {
         $user = $request->user();
-        $isOwner = $user && $product->user_id === $user->id;
+
+        $isOwner = $user
+            && (int) $product->user_id === (int) $user->id;
+
         $isAdmin = $user && $user->isAdmin();
 
-        if (!$product->is_approved && !$isOwner && !$isAdmin) {
-            return response()->json(['message' => 'Not found.'], 404);
+        if (
+            (! $product->is_approved || ! $product->is_active)
+            && ! $isOwner
+            && ! $isAdmin
+        ) {
+            return response()->json([
+                'message' => 'Not found.',
+            ], 404);
         }
 
-        $product->load(['category', 'user:id,name']);
-
-        return response()->json(['data' => $product]);
+        return response()->json([
+            'data' => $product->load(['category', 'user:id,name']),
+        ]);
     }
 
     /**
-     * Update own product (only if not approved OR owner).
+     * Update an owned product.
      */
     public function update(Request $request, Product $product)
     {
-        if ($product->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+        if ((int) $product->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Unauthorized.',
+            ], 403);
         }
 
         $validated = $request->validate([
-            'name'        => 'sometimes|required|string|max:255',
+            'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string|max:5000',
-            'price'       => 'sometimes|required|numeric|min:0',
-            'quantity'    => 'sometimes|required|integer|min:0',
-            'brand'       => 'nullable|string|max:100',
-            'sku'         => 'nullable|string|max:100',
-            'photos'      => 'nullable|array|max:5',
-            'photos.*'    => 'image|mimes:jpg,jpeg,png,webp|max:5120',
+            'price' => 'sometimes|required|numeric|min:0',
+            'quantity' => 'sometimes|required|integer|min:0',
+            'brand' => 'nullable|string|max:100',
+            'sku' => 'nullable|string|max:100',
+            'photos' => 'nullable|array|max:5',
+            'photos.*' => 'image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
 
-        // Handle photos
         if ($request->hasFile('photos')) {
-            // Delete old
             foreach ($product->photos ?? [] as $old) {
                 Storage::disk('public')->delete($old);
             }
-            // Store new
+
             $newPaths = [];
+
             foreach ($request->file('photos') as $photo) {
                 $newPaths[] = $photo->store('products', 'public');
             }
-            $validated['photos'] = $newPaths;
 
-            // Re-approve needed after photo change
+            $validated['photos'] = $newPaths;
             $validated['is_approved'] = false;
         }
 
@@ -156,26 +160,29 @@ class ProductController extends Controller
 
         return response()->json([
             'message' => 'Product updated.',
-            'data'    => $product->fresh('category'),
+            'data' => $product->fresh('category'),
         ]);
     }
 
     /**
-     * Delete own product.
+     * Delete an owned product.
      */
     public function destroy(Request $request, Product $product)
     {
-        if ($product->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+        if ((int) $product->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Unauthorized.',
+            ], 403);
         }
 
-        // Delete photos from storage
         foreach ($product->photos ?? [] as $path) {
             Storage::disk('public')->delete($path);
         }
 
         $product->delete();
 
-        return response()->json(['message' => 'Product deleted.']);
+        return response()->json([
+            'message' => 'Product deleted.',
+        ]);
     }
 }
