@@ -37,7 +37,7 @@ class LostPetResource extends JsonResource
             ])->values()),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
-            
+
             'flagged_at' => $this->flagged_at?->toISOString(),
             'flag_reason' => $this->flag_reason,
         ];

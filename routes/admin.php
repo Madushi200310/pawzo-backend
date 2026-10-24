@@ -78,5 +78,5 @@ Route::middleware(['auth:sanctum', 'admin'])
             Route::patch('/{match}/unflag', [\App\Http\Controllers\Admin\AdminMatchController::class, 'unflag'])
                 ->whereNumber('match')->name('unflag');
         });
-        
+
     });
