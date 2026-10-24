@@ -1,0 +1,83 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - Sudeesha
+      - kavishka
+      - Madushi
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: PHP 8.4 - Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      APP_URL: http://localhost
+      APP_MAINTENANCE_DRIVER: file
+      BCRYPT_ROUNDS: "4"
+      LOG_CHANNEL: stderr
+      BROADCAST_CONNECTION: "null"
+      CACHE_STORE: array
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ":memory:"
+      DB_URL: ""
+      MAIL_MAILER: array
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+      OPENAI_API_KEY: ""
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, intl, bcmath, curl, dom, fileinfo, gd, pdo_sqlite, sqlite3, xml, xmlwriter, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Prepare environment file
+        run: cp .env.example .env
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Generate test application key
+        run: php artisan key:generate --force --no-interaction
+
+      - name: Clear configuration and route caches
+        run: |
+          php artisan config:clear
+          php artisan route:clear
+
+      - name: Check PHP syntax
+        run: |
+          find app bootstrap config database routes tests \
+            -type f -name '*.php' -print0 |
+            xargs -0 -r -n 1 php -l
+
+      - name: Verify API routes load
+        run: php artisan route:list --path=api --except-vendor
+
+      - name: Run full test suite
+        run: php vendor/phpunit/phpunit/phpunit --configuration phpunit.xml --colors=never
