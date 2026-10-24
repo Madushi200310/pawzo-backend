@@ -27,6 +27,7 @@ class FoundPetReport extends Model
             'resolved_at' => 'datetime',
             'latitude' => 'float',
             'longitude' => 'float',
+            'flagged_at' => 'datetime',
         ];
     }
 

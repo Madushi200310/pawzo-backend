@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Maps;
 
 use App\Models\LostPetReport;
+use App\Models\StrayReport;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -38,7 +39,7 @@ class MapReportsRequest extends FormRequest
             'kind' => [
                 'sometimes',
                 'required',
-                Rule::in(['all', 'lost', 'found']),
+                Rule::in(['all', 'lost', 'found', 'stray']),
             ],
 
             'pet_type' => [
@@ -50,7 +51,10 @@ class MapReportsRequest extends FormRequest
             'status' => [
                 'sometimes',
                 'required',
-                Rule::in(LostPetReport::STATUSES),
+                Rule::in(array_unique([
+                    ...LostPetReport::STATUSES,
+                    ...StrayReport::STATUSES,
+                ])),
             ],
 
             'limit' => [

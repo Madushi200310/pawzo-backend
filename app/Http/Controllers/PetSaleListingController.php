@@ -9,15 +9,13 @@ use Illuminate\Support\Facades\Storage;
 class PetSaleListingController extends Controller
 {
     /**
-     * List pet sale listings.
-     * Public: only approved + active.
-     * Auth: `?mine=1` returns the user's own listings.
+     * Public browsing returns approved, active listings.
+     * Owners can request their own listings with ?mine=1.
      */
     public function index(Request $request)
     {
         $query = PetSaleListing::with('user:id,name');
 
-        // Filters
         if ($request->filled('pet_type')) {
             $query->where('pet_type', $request->pet_type);
         }
@@ -47,14 +45,14 @@ class PetSaleListingController extends Controller
         }
 
         if ($request->filled('search')) {
-            $s = $request->search;
-            $query->where(function ($q) use ($s) {
-                $q->where('breed', 'ILIKE', "%{$s}%")
-                  ->orWhere('description', 'ILIKE', "%{$s}%");
+            $search = $request->search;
+
+            $query->where(function ($query) use ($search) {
+                $query->where('breed', 'ILIKE', "%{$search}%")
+                    ->orWhere('description', 'ILIKE', "%{$search}%");
             });
         }
 
-        // Mine vs public
         if ($request->user() && $request->boolean('mine')) {
             $query->where('user_id', $request->user()->id);
         } else {
@@ -65,177 +63,200 @@ class PetSaleListingController extends Controller
     }
 
     /**
-     * Create a new pet sale listing.
+     * Submit a pet sale listing for admin approval.
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'pet_type'         => 'required|string|max:50',
-            'breed'            => 'nullable|string|max:100',
-            'age'              => 'nullable|string|max:50',
-            'gender'           => 'required|in:male,female,unknown',
-            'color'            => 'nullable|string|max:50',
-            'description'      => 'nullable|string|max:5000',
-            'location'         => 'nullable|string|max:255',
-            'city'             => 'nullable|string|max:100',
-            'district'         => 'nullable|string|max:100',
-            'price'            => 'required|numeric|min:0',
-            'is_negotiable'    => 'boolean',
-            'contact_phone'    => 'required|string|max:20',
+            'pet_type' => 'required|string|max:50',
+            'breed' => 'nullable|string|max:100',
+            'age' => 'nullable|string|max:50',
+            'gender' => 'required|in:male,female,unknown',
+            'color' => 'nullable|string|max:50',
+            'description' => 'nullable|string|max:5000',
+            'location' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:100',
+            'district' => 'nullable|string|max:100',
+            'price' => 'required|numeric|min:0',
+            'is_negotiable' => 'boolean',
+            'contact_phone' => 'required|string|max:20',
             'contact_whatsapp' => 'nullable|string|max:20',
-
-            'photos'           => 'nullable|array|max:5',
-            'photos.*'         => 'image|mimes:jpg,jpeg,png,webp|max:5120',
-
-            'certificates'     => 'nullable|array|max:3',
-            'certificates.*'   => 'file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+            'photos' => 'nullable|array|max:5',
+            'photos.*' => 'image|mimes:jpg,jpeg,png,webp|max:5120',
+            'certificates' => 'nullable|array|max:3',
+            'certificates.*' => 'file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ]);
 
-        // Upload photos
         $photoPaths = [];
+
         if ($request->hasFile('photos')) {
             foreach ($request->file('photos') as $photo) {
                 $photoPaths[] = $photo->store('pet_sale_photos', 'public');
             }
         }
 
-        // Upload certificates
-        $certPaths = [];
+        $certificatePaths = [];
+
         if ($request->hasFile('certificates')) {
-            foreach ($request->file('certificates') as $cert) {
-                $certPaths[] = $cert->store('pet_certificates', 'public');
+            foreach ($request->file('certificates') as $certificate) {
+                $certificatePaths[] = $certificate->store(
+                    'pet_certificates',
+                    'public',
+                );
             }
         }
 
         $listing = PetSaleListing::create([
-            'user_id'          => $request->user()->id,
-            'pet_type'         => $validated['pet_type'],
-            'breed'            => $validated['breed'] ?? null,
-            'age'              => $validated['age'] ?? null,
-            'gender'           => $validated['gender'],
-            'color'            => $validated['color'] ?? null,
-            'description'      => $validated['description'] ?? null,
-            'location'         => $validated['location'] ?? null,
-            'city'             => $validated['city'] ?? null,
-            'district'         => $validated['district'] ?? null,
-            'price'            => $validated['price'],
-            'is_negotiable'    => $request->boolean('is_negotiable'),
-            'photos'           => $photoPaths,
-            'certificates'     => $certPaths,
-            'contact_phone'    => $validated['contact_phone'],
+            'user_id' => $request->user()->id,
+            'pet_type' => $validated['pet_type'],
+            'breed' => $validated['breed'] ?? null,
+            'age' => $validated['age'] ?? null,
+            'gender' => $validated['gender'],
+            'color' => $validated['color'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'location' => $validated['location'] ?? null,
+            'city' => $validated['city'] ?? null,
+            'district' => $validated['district'] ?? null,
+            'price' => $validated['price'],
+            'is_negotiable' => $request->boolean('is_negotiable'),
+            'photos' => $photoPaths,
+            'certificates' => $certificatePaths,
+            'contact_phone' => $validated['contact_phone'],
             'contact_whatsapp' => $validated['contact_whatsapp'] ?? null,
-            'status'           => 'available',
-            'is_approved'      => false,
-            'is_active'        => true,
+            'status' => 'available',
+            'is_approved' => false,
+            'is_active' => true,
         ]);
 
         return response()->json([
             'message' => 'Pet listing submitted. Awaiting admin approval.',
-            'data'    => $listing,
+            'data' => $listing,
         ], 201);
     }
 
     /**
-     * Show a single listing.
+     * Owners and admins can view unpublished listings.
+     * Everyone else can only view approved, active listings.
      */
     public function show(Request $request, PetSaleListing $petSaleListing)
     {
         $user = $request->user();
-        $isOwner = $user && $petSaleListing->user_id === $user->id;
+
+        $isOwner = $user
+            && (int) $petSaleListing->user_id === (int) $user->id;
+
         $isAdmin = $user && $user->isAdmin();
 
-        if (!$petSaleListing->is_approved && !$isOwner && !$isAdmin) {
-            return response()->json(['message' => 'Not found.'], 404);
+        if (
+            (! $petSaleListing->is_approved || ! $petSaleListing->is_active)
+            && ! $isOwner
+            && ! $isAdmin
+        ) {
+            return response()->json([
+                'message' => 'Not found.',
+            ], 404);
         }
 
-        $petSaleListing->load('user:id,name,phone,email');
-
-        return response()->json(['data' => $petSaleListing]);
+        return response()->json([
+            'data' => $petSaleListing->load('user:id,name,phone,email'),
+        ]);
     }
 
     /**
-     * Update own listing.
+     * Update an owned pet sale listing.
      */
     public function update(Request $request, PetSaleListing $petSaleListing)
     {
-        if ($petSaleListing->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+        if ((int) $petSaleListing->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Unauthorized.',
+            ], 403);
         }
 
         $validated = $request->validate([
-            'pet_type'         => 'sometimes|required|string|max:50',
-            'breed'            => 'nullable|string|max:100',
-            'age'              => 'nullable|string|max:50',
-            'gender'           => 'sometimes|required|in:male,female,unknown',
-            'color'            => 'nullable|string|max:50',
-            'description'      => 'nullable|string|max:5000',
-            'location'         => 'nullable|string|max:255',
-            'city'             => 'nullable|string|max:100',
-            'district'         => 'nullable|string|max:100',
-            'price'            => 'sometimes|required|numeric|min:0',
-            'is_negotiable'    => 'boolean',
-            'contact_phone'    => 'sometimes|required|string|max:20',
+            'pet_type' => 'sometimes|required|string|max:50',
+            'breed' => 'nullable|string|max:100',
+            'age' => 'nullable|string|max:50',
+            'gender' => 'sometimes|required|in:male,female,unknown',
+            'color' => 'nullable|string|max:50',
+            'description' => 'nullable|string|max:5000',
+            'location' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:100',
+            'district' => 'nullable|string|max:100',
+            'price' => 'sometimes|required|numeric|min:0',
+            'is_negotiable' => 'boolean',
+            'contact_phone' => 'sometimes|required|string|max:20',
             'contact_whatsapp' => 'nullable|string|max:20',
-            'status'           => 'sometimes|in:available,reserved,sold',
-
-            'photos'           => 'nullable|array|max:5',
-            'photos.*'         => 'image|mimes:jpg,jpeg,png,webp|max:5120',
-
-            'certificates'     => 'nullable|array|max:3',
-            'certificates.*'   => 'file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+            'status' => 'sometimes|in:available,reserved,sold',
+            'photos' => 'nullable|array|max:5',
+            'photos.*' => 'image|mimes:jpg,jpeg,png,webp|max:5120',
+            'certificates' => 'nullable|array|max:3',
+            'certificates.*' => 'file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ]);
 
-        // Handle photo replacement
         if ($request->hasFile('photos')) {
             foreach ($petSaleListing->photos ?? [] as $old) {
                 Storage::disk('public')->delete($old);
             }
+
             $newPhotos = [];
-            foreach ($request->file('photos') as $p) {
-                $newPhotos[] = $p->store('pet_sale_photos', 'public');
+
+            foreach ($request->file('photos') as $photo) {
+                $newPhotos[] = $photo->store('pet_sale_photos', 'public');
             }
+
             $validated['photos'] = $newPhotos;
-            $validated['is_approved'] = false; // re-approval needed
+            $validated['is_approved'] = false;
         }
 
-        // Handle certificate replacement
         if ($request->hasFile('certificates')) {
             foreach ($petSaleListing->certificates ?? [] as $old) {
                 Storage::disk('public')->delete($old);
             }
-            $newCerts = [];
-            foreach ($request->file('certificates') as $c) {
-                $newCerts[] = $c->store('pet_certificates', 'public');
+
+            $newCertificates = [];
+
+            foreach ($request->file('certificates') as $certificate) {
+                $newCertificates[] = $certificate->store(
+                    'pet_certificates',
+                    'public',
+                );
             }
-            $validated['certificates'] = $newCerts;
+
+            $validated['certificates'] = $newCertificates;
         }
 
         $petSaleListing->update($validated);
 
         return response()->json([
             'message' => 'Listing updated.',
-            'data'    => $petSaleListing->fresh('user:id,name'),
+            'data' => $petSaleListing->fresh('user:id,name'),
         ]);
     }
 
     /**
-     * Delete own listing.
+     * Delete an owned pet sale listing.
      */
     public function destroy(Request $request, PetSaleListing $petSaleListing)
     {
-        if ($petSaleListing->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+        if ((int) $petSaleListing->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Unauthorized.',
+            ], 403);
         }
 
-        foreach ($petSaleListing->photos ?? [] as $p) {
-            Storage::disk('public')->delete($p);
+        foreach ($petSaleListing->photos ?? [] as $path) {
+            Storage::disk('public')->delete($path);
         }
-        foreach ($petSaleListing->certificates ?? [] as $c) {
-            Storage::disk('public')->delete($c);
+
+        foreach ($petSaleListing->certificates ?? [] as $path) {
+            Storage::disk('public')->delete($path);
         }
 
         $petSaleListing->delete();
 
-        return response()->json(['message' => 'Listing deleted.']);
+        return response()->json([
+            'message' => 'Listing deleted.',
+        ]);
     }
 }

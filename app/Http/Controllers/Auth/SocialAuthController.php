@@ -4,83 +4,220 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use GuzzleHttp\Exception\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
+use Throwable;
 
 class SocialAuthController extends Controller
 {
-    /**
-     * Redirect the user to Google's OAuth consent screen.
-     */
     public function redirectToGoogle(): JsonResponse
     {
-        $url = Socialite::driver('google')
+        return $this->redirect('google', 'Google');
+    }
+
+    public function redirectToFacebook(): JsonResponse
+    {
+        return $this->redirect('facebook', 'Facebook');
+    }
+
+    public function handleGoogleCallback(Request $request): JsonResponse
+    {
+        return $this->callback('google', 'Google');
+    }
+
+    public function handleFacebookCallback(Request $request): JsonResponse
+    {
+        return $this->callback('facebook', 'Facebook');
+    }
+
+    private function redirect(string $provider, string $label): JsonResponse
+    {
+        $url = Socialite::driver($provider)
             ->stateless()
             ->redirect()
             ->getTargetUrl();
 
         return response()->json([
-            'message'      => 'Redirect to Google',
+            'message' => "Redirect to {$label}",
             'redirect_url' => $url,
         ]);
     }
 
-    /**
-     * Handle Google's callback.
-     */
-    public function handleGoogleCallback(Request $request): JsonResponse
+    private function unavailable(): JsonResponse
     {
-        try {
-            $googleUser = Socialite::driver('google')->stateless()->user();
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => 'Failed to authenticate with Google.',
-                'error'   => $e->getMessage(),
-            ], 401);
-        }
+        return response()->json([
+            'message' => 'This account is unavailable. Please contact support.',
+        ], 403);
+    }
 
-        // Find by google_id first, then by email
-        $user = User::where('google_id', $googleUser->getId())->first()
-            ?? User::where('email', $googleUser->getEmail())->first();
+    private function logProviderFailure(
+        string $provider,
+        Throwable $exception,
+    ): void {
+        $details = [
+            'provider' => $provider,
+            'exception_class' => get_class($exception),
+        ];
 
-        if (! $user) {
-            // Create a fresh user
-            $user = User::create([
-                'name'              => $googleUser->getName() ?: 'Google User',
-                'email'             => $googleUser->getEmail(),
-                'password'          => Hash::make(Str::random(32)), // random, login via Google only
-                'google_id'         => $googleUser->getId(),
-                'avatar'            => $googleUser->getAvatar(),
-                'role'              => 'user',
-                'is_active'         => true,
-                'email_verified_at' => now(), // Google already verified the email
-            ]);
-        } else {
-            // Link the Google account if not already linked
-            if (! $user->google_id) {
-                $user->update([
-                    'google_id' => $googleUser->getId(),
-                    'avatar'    => $user->avatar ?? $googleUser->getAvatar(),
-                ]);
+        if ($exception instanceof RequestException) {
+            $response = $exception->getResponse();
+            $context = $exception->getHandlerContext();
+
+            $details['http_status'] = $response?->getStatusCode();
+            $details['curl_errno'] = $context['errno'] ?? null;
+
+            if ($response) {
+                $payload = json_decode(
+                    (string) $response->getBody(),
+                    true,
+                );
+
+                $error = is_array($payload)
+                    ? ($payload['error'] ?? null)
+                    : null;
+
+                $allowedErrors = [
+                    'invalid_client',
+                    'invalid_grant',
+                    'invalid_request',
+                    'unauthorized_client',
+                    'access_denied',
+                    'redirect_uri_mismatch',
+                ];
+
+                if (
+                    is_string($error)
+                    && in_array($error, $allowedErrors, true)
+                ) {
+                    $details['provider_error'] = $error;
+                }
             }
         }
 
-        // Block deactivated accounts
-        if (! $user->is_active) {
+        Log::warning(
+            'Social login provider request failed',
+            $details,
+        );
+    }
+
+    private function callback(string $provider, string $label): JsonResponse
+    {
+        try {
+            $socialUser = Socialite::driver($provider)
+                ->stateless()
+                ->user();
+        } catch (Throwable $exception) {
+            $this->logProviderFailure($provider, $exception);
+
             return response()->json([
-                'message' => 'Your account has been deactivated. Please contact support.',
-            ], 403);
+                'message' => "Failed to authenticate with {$label}.",
+            ], 401);
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $providerId = (string) $socialUser->getId();
+        $email = $socialUser->getEmail();
 
-        return response()->json([
-            'message' => 'Login via Google successful.',
-            'user'    => $user->fresh(),
-            'token'   => $token,
-        ]);
+        if ($providerId === '') {
+            return response()->json([
+                'message' => 'The provider did not return a valid account ID.',
+            ], 422);
+        }
+
+        $column = $provider === 'google'
+            ? 'google_id'
+            : 'facebook_id';
+
+        return DB::transaction(function () use (
+            $socialUser,
+            $providerId,
+            $email,
+            $column,
+            $label,
+        ) {
+            $user = User::query()
+                ->withTrashed()
+                ->where($column, $providerId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($user && ($user->trashed() || ! $user->is_active)) {
+                return $this->unavailable();
+            }
+
+            if (! $user) {
+                if (
+                    ! is_string($email)
+                    || ! filter_var($email, FILTER_VALIDATE_EMAIL)
+                ) {
+                    return response()->json([
+                        'message' => 'The provider did not return a valid email address.',
+                    ], 422);
+                }
+
+                $existing = User::query()
+                    ->withTrashed()
+                    ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($existing) {
+                    if ($existing->trashed() || ! $existing->is_active) {
+                        return $this->unavailable();
+                    }
+
+                    return response()->json([
+                        'message' => 'An account already uses this email. Please use its existing login method.',
+                        'error' => 'account_link_required',
+                    ], 409);
+                }
+
+                $user = new User([
+                    'name' => $socialUser->getName() ?: "{$label} User",
+                    'email' => $email,
+                    'password' => Hash::make(Str::random(64)),
+                    $column => $providerId,
+                    'avatar' => $socialUser->getAvatar(),
+                    'role' => 'user',
+                    'is_active' => true,
+                ]);
+
+                $user->forceFill([
+                    'email_verified_at' => now(),
+                ]);
+
+                $user->save();
+            }
+
+            if (
+                $user->email_verified_at === null
+                && is_string($email)
+                && strcasecmp($user->email, $email) === 0
+            ) {
+                $user->forceFill([
+                    'email_verified_at' => now(),
+                ])->save();
+            }
+
+            if ($user->email_verified_at === null) {
+                return response()->json([
+                    'message' => 'Please verify your email before logging in.',
+                    'email_not_verified' => true,
+                ], 403);
+            }
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'message' => "Login via {$label} successful.",
+                'user' => $user->fresh(),
+                'token' => $token,
+            ]);
+        });
     }
 }

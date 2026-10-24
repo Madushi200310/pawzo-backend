@@ -5,6 +5,7 @@ namespace App\Services\Matching;
 use App\Models\FoundPetReport;
 use App\Models\LostPetReport;
 use App\Models\PetMatch;
+use App\Services\Notifications\NotificationService;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -36,7 +37,7 @@ class SmartMatchingService
             $sourceClass,
             $candidateClass,
             $foreignKey,
-            $id
+            $id,
         ) {
             $lock = DB::table('pet_matching_locks')
                 ->where('id', 1)
@@ -77,14 +78,15 @@ class SmartMatchingService
                 ->where('status', 'open')
                 ->where('pet_type', $source->pet_type)
                 ->whereHas('user', function ($query) {
-                    $query->where('is_active', true)
+                    $query
+                        ->where('is_active', true)
                         ->whereNotNull('email_verified_at');
                 })
                 ->whereBetween(
                     $isLost ? 'found_at' : 'lost_at',
                     $dateRange
                 )
-                ->with('photos');
+                ->with(['user', 'photos']);
 
             $kept = [];
             $photos = new PhotoSimilarity();
@@ -95,7 +97,7 @@ class SmartMatchingService
                     $source,
                     $isLost,
                     $photos,
-                    &$kept
+                    &$kept,
                 ) {
                     foreach ($batch as $candidate) {
                         $lost = $isLost ? $source : $candidate;
@@ -129,6 +131,15 @@ class SmartMatchingService
                         );
 
                         $kept[] = $match->id;
+
+                        // Existing matches are updated without new alerts.
+                        if ($match->wasRecentlyCreated) {
+                            $this->notifyMatchOwners(
+                                $lost,
+                                $found,
+                                (float) $result['score'],
+                            );
+                        }
                     }
                 }
             );
@@ -144,10 +155,50 @@ class SmartMatchingService
         }, 3);
     }
 
+    private function notifyMatchOwners(
+        LostPetReport $lost,
+        FoundPetReport $found,
+        float $score,
+    ): void {
+        $notifications = app(NotificationService::class);
+
+        $lostOwner = $lost->user;
+        $foundOwner = $found->user;
+
+        if (
+            $lostOwner
+            && $lostOwner->is_active
+            && $lostOwner->email_verified_at !== null
+        ) {
+            $notifications->smartMatchFound(
+                user: $lostOwner,
+                reportId: (int) $lost->id,
+                reportType: 'lost',
+                candidateId: (int) $found->id,
+                score: $score,
+            );
+        }
+
+        if (
+            $foundOwner
+            && $foundOwner->is_active
+            && $foundOwner->email_verified_at !== null
+            && (int) $foundOwner->id !== (int) $lost->user_id
+        ) {
+            $notifications->smartMatchFound(
+                user: $foundOwner,
+                reportId: (int) $found->id,
+                reportType: 'found',
+                candidateId: (int) $lost->id,
+                score: $score,
+            );
+        }
+    }
+
     public function score(
         LostPetReport $lost,
         FoundPetReport $found,
-        PhotoSimilarity $photos
+        PhotoSimilarity $photos,
     ): ?array {
         $days = (
             $found->found_at->getTimestamp()
@@ -178,13 +229,11 @@ class SmartMatchingService
                 20,
                 'Breed word overlap',
             ],
-
             'color' => [
                 15 * $this->similarity($lost->color, $found->color),
                 15,
                 'Color word overlap',
             ],
-
             'gender' => [
                 $knownGender ? 10 : 0,
                 10,
@@ -192,7 +241,6 @@ class SmartMatchingService
                     ? 'Same reported gender'
                     : 'Gender unknown',
             ],
-
             'location' => [
                 match (true) {
                     $km <= 2 => 25,
@@ -204,7 +252,6 @@ class SmartMatchingService
                 25,
                 'Distance between reported locations',
             ],
-
             'date' => [
                 match (true) {
                     $days <= 3 => 15,
@@ -215,7 +262,6 @@ class SmartMatchingService
                 15,
                 'Elapsed time from loss to finding',
             ],
-
             'characteristics' => [
                 10 * $this->similarity(
                     $lost->distinguishing_features.' '.$lost->description,
@@ -224,7 +270,6 @@ class SmartMatchingService
                 10,
                 'Description and distinguishing-feature word overlap',
             ],
-
             'photos' => [
                 $photo !== null && $photo >= 0.90 ? 5 * $photo : 0,
                 5,
@@ -249,7 +294,6 @@ class SmartMatchingService
                 array_sum(array_column($breakdown, 'points')),
                 2
             ),
-
             'details' => [
                 'algorithm' => 'rules-v1',
                 'distance_km' => round($km, 3),
@@ -303,7 +347,7 @@ class SmartMatchingService
 
     private function distance(
         LostPetReport $a,
-        FoundPetReport $b
+        FoundPetReport $b,
     ): float {
         $lat1 = deg2rad((float) $a->latitude);
         $lat2 = deg2rad((float) $b->latitude);

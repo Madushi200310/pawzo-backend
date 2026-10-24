@@ -51,9 +51,9 @@ class MapReportsTest extends TestCase
 
     private function report(
         string $kind = 'lost',
-        array $overrides = []
+        array $overrides = [],
     ): int {
-        // Direct fixtures isolate map reads from matching observers.
+        // Direct inserts avoid triggering Smart Matching observers.
         return (int) DB::table($kind.'_pet_reports')->insertGetId(
             array_replace([
                 'user_id' => $this->viewer->id,
@@ -135,17 +135,14 @@ class MapReportsTest extends TestCase
                 $feature['geometry']['coordinates']
             );
 
-            $this->assertEquals(
-                0,
-                $feature['properties']['distance_km']
-            );
+            $properties = $feature['properties'];
+
+            $this->assertEquals(0, $properties['distance_km']);
 
             $this->assertSame(
                 '2020-01-01T00:00:00.000000Z',
-                $feature['properties']['occurred_at']
+                $properties['occurred_at']
             );
-
-            $properties = $feature['properties'];
 
             $this->assertSame(
                 url(
@@ -173,21 +170,16 @@ class MapReportsTest extends TestCase
     {
         Sanctum::actingAs($this->viewer);
 
-        $this->report('lost', [
-            'latitude' => 7.18,
-        ]);
-
+        $this->report('lost', ['latitude' => 7.18]);
         $nearest = $this->report('found');
 
-        // Inside the bounding box, but outside the 10 km circle.
+        // Inside the bounding box but outside the 10 km circle.
         $this->report('found', [
             'latitude' => 7.222,
             'longitude' => 80.176,
         ]);
 
-        $this->report('lost', [
-            'latitude' => 9.66,
-        ]);
+        $this->report('lost', ['latitude' => 9.66]);
 
         $this->getJson($this->endpoint())
             ->assertOk()
@@ -200,12 +192,9 @@ class MapReportsTest extends TestCase
         Sanctum::actingAs($this->viewer);
 
         for ($i = 0; $i < 251; $i++) {
-            $this->report('lost', [
-                'latitude' => 7.18,
-            ]);
+            $this->report('lost', ['latitude' => 7.18]);
         }
 
-        // Nearest report is deliberately in a later batch.
         $nearest = $this->report('lost');
 
         $this->getJson($this->endpoint(['limit' => 1]))
@@ -260,6 +249,7 @@ class MapReportsTest extends TestCase
 
         $inactive = User::factory()->create([
             'is_active' => false,
+            'email_verified_at' => now(),
         ]);
 
         $unverified = User::factory()->unverified()->create([
@@ -268,6 +258,7 @@ class MapReportsTest extends TestCase
 
         $other = User::factory()->create([
             'is_active' => true,
+            'email_verified_at' => now(),
         ]);
 
         $this->report('lost', [
@@ -294,10 +285,7 @@ class MapReportsTest extends TestCase
 
         $this->getJson('/api/map/reports')
             ->assertUnprocessable()
-            ->assertJsonValidationErrors([
-                'latitude',
-                'longitude',
-            ]);
+            ->assertJsonValidationErrors(['latitude', 'longitude']);
 
         foreach ([
             ['latitude', 91],
@@ -307,7 +295,7 @@ class MapReportsTest extends TestCase
             ['longitude', -181],
             ['radius_km', 0],
             ['radius_km', 101],
-            ['kind', 'stray'],
+            ['kind', 'invalid_kind'],
             ['pet_type', 'invalid'],
             ['status', 'invalid'],
             ['limit', 0],

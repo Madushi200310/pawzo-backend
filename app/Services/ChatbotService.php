@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class ChatbotService
 {
@@ -14,46 +15,50 @@ class ChatbotService
      */
     public function respond(string $userMessage): array
     {
-        $normalized = strtolower(trim($userMessage));
+        $normalized = mb_strtolower(trim($userMessage), 'UTF-8');
 
-        // 1. Try rule-based match first
+        // Try a rule-based response first.
         $ruleResponse = $this->matchRule($normalized);
 
         if ($ruleResponse !== null) {
             return [
                 'message' => $ruleResponse,
-                'source'  => 'rule',
+                'source' => 'rule',
             ];
         }
 
-        // 2. Try OpenAI if configured
-        if (config('services.openai.api_key')) {
+        // Try OpenAI when configured.
+        if (filled(config('services.openai.api_key'))) {
             $aiResponse = $this->askOpenAi($userMessage);
+
             if ($aiResponse !== null) {
                 return [
                     'message' => $aiResponse,
-                    'source'  => 'openai',
+                    'source' => 'openai',
                 ];
             }
         }
 
-        // 3. Fallback response
         return [
             'message' => "I'm not sure about that yet. 🐾 For specific concerns, please consult a veterinarian. You can also ask me about: vaccination, feeding, grooming, training, health, or lost pets.",
-            'source'  => 'fallback',
+            'source' => 'fallback',
         ];
     }
 
     /**
-     * Rule-based pattern matching.
+     * Match whole keywords or phrases, including Unicode text.
      */
     protected function matchRule(string $text): ?string
     {
-        $rules = $this->getRules();
-
-        foreach ($rules as $rule) {
+        foreach ($this->getRules() as $rule) {
             foreach ($rule['keywords'] as $keyword) {
-                if (str_contains($text, $keyword)) {
+                // Letters, combining marks, numbers and underscores belong
+                // to words. This prevents "hi" matching inside "microchip".
+                $pattern = '/(?<![\p{L}\p{M}\p{N}_])'
+                    . preg_quote($keyword, '/')
+                    . '(?![\p{L}\p{M}\p{N}_])/iu';
+
+                if (preg_match($pattern, $text) === 1) {
                     return $rule['response'];
                 }
             }
@@ -69,7 +74,12 @@ class ChatbotService
     {
         return [
             [
-                'keywords' => ['vaccination', 'vaccine', 'vaccinate', 'එන්නත්'],
+                'keywords' => [
+                    'vaccination',
+                    'vaccine',
+                    'vaccinate',
+                    'එන්නත්',
+                ],
                 'response' => "**Vaccination Schedule for Pets** 💉\n\n"
                     . "• **Puppies/Kittens**: Start at 6-8 weeks, then every 3-4 weeks until 16 weeks\n"
                     . "• **Adult dogs**: Annual boosters (rabies, DHPP, leptospirosis)\n"
@@ -77,7 +87,14 @@ class ChatbotService
                     . "Always consult your vet for the exact schedule based on your pet's age and health.",
             ],
             [
-                'keywords' => ['feeding', 'feed', 'food', 'how much to feed', 'diet', 'ආහාර'],
+                'keywords' => [
+                    'feeding',
+                    'feed',
+                    'food',
+                    'how much to feed',
+                    'diet',
+                    'ආහාර',
+                ],
                 'response' => "**Feeding Guidelines** 🍽️\n\n"
                     . "• **Puppies** (under 6 months): 3-4 small meals/day\n"
                     . "• **Adult dogs**: 2 meals/day\n"
@@ -86,7 +103,13 @@ class ChatbotService
                     . "Portion depends on weight, breed, and activity. Check the food packaging or ask your vet.",
             ],
             [
-                'keywords' => ['grooming', 'groom', 'bath', 'brush', 'නාන'],
+                'keywords' => [
+                    'grooming',
+                    'groom',
+                    'bath',
+                    'brush',
+                    'නාන',
+                ],
                 'response' => "**Grooming Tips** ✂️\n\n"
                     . "• **Bathing**: Every 4-6 weeks (dogs), every 6-8 weeks (cats)\n"
                     . "• **Brushing**: 2-3 times/week (long coats need daily)\n"
@@ -95,7 +118,13 @@ class ChatbotService
                     . "Use pet-safe shampoos — never human products!",
             ],
             [
-                'keywords' => ['training', 'train', 'obedience', 'command', 'පුහුණු'],
+                'keywords' => [
+                    'training',
+                    'train',
+                    'obedience',
+                    'command',
+                    'පුහුණු',
+                ],
                 'response' => "**Basic Training Tips** 🎓\n\n"
                     . "• **Start early** — 8-16 weeks is ideal\n"
                     . "• **Short sessions** — 5-10 min, 2-3 times/day\n"
@@ -104,7 +133,15 @@ class ChatbotService
                     . "• **Consistency** is key — same commands, same rewards",
             ],
             [
-                'keywords' => ['health', 'sick', 'ill', 'vomit', 'diarrhea', 'fever', 'අසනීප'],
+                'keywords' => [
+                    'health',
+                    'sick',
+                    'ill',
+                    'vomit',
+                    'diarrhea',
+                    'fever',
+                    'අසනීප',
+                ],
                 'response' => "**When to See a Vet** 🏥\n\n"
                     . "⚠️ **Emergency signs**:\n"
                     . "• Persistent vomiting or diarrhea\n"
@@ -115,7 +152,12 @@ class ChatbotService
                     . "For mild symptoms, monitor for 24 hours. If it worsens, see a vet immediately.",
             ],
             [
-                'keywords' => ['lost', 'missing', 'run away', 'නැති'],
+                'keywords' => [
+                    'lost',
+                    'missing',
+                    'run away',
+                    'නැති',
+                ],
                 'response' => "**Lost Pet — Action Plan** 🔍\n\n"
                     . "1. **Post on Pawzo's Lost & Found** immediately\n"
                     . "2. Search nearby — pets usually hide close by\n"
@@ -126,7 +168,12 @@ class ChatbotService
                     . "Don't give up — many pets are found weeks later!",
             ],
             [
-                'keywords' => ['adopt', 'adoption', 'rescue', 'හදාගන්න'],
+                'keywords' => [
+                    'adopt',
+                    'adoption',
+                    'rescue',
+                    'හදාගන්න',
+                ],
                 'response' => "**Adoption Guide** 🏠\n\n"
                     . "• **Consider lifestyle** — energy level, space, time\n"
                     . "• **Meet the pet** multiple times before deciding\n"
@@ -136,7 +183,13 @@ class ChatbotService
                     . "Adopting saves lives! 🐾",
             ],
             [
-                'keywords' => ['hello', 'hi', 'hey', 'ayubowan', 'හලෝ'],
+                'keywords' => [
+                    'hello',
+                    'hi',
+                    'hey',
+                    'ayubowan',
+                    'හලෝ',
+                ],
                 'response' => "Hello! 👋 I'm Pawzo AI, your pet care assistant. Ask me about:\n\n"
                     . "• 🐕 Training & behavior\n"
                     . "• 💉 Vaccination\n"
@@ -147,7 +200,11 @@ class ChatbotService
                     . "• 🏠 Adoption",
             ],
             [
-                'keywords' => ['thank', 'thanks', 'ස්තූති'],
+                'keywords' => [
+                    'thank',
+                    'thanks',
+                    'ස්තූති',
+                ],
                 'response' => "You're welcome! 🐾 If you have more questions, just ask. Happy pet parenting! 💙",
             ],
         ];
@@ -159,35 +216,53 @@ class ChatbotService
     protected function askOpenAi(string $userMessage): ?string
     {
         $apiKey = config('services.openai.api_key');
-        $model  = config('services.openai.model', 'gpt-4o-mini');
+        $model = config('services.openai.model', 'gpt-4o-mini');
 
         try {
             $response = Http::withToken($apiKey)
+                ->connectTimeout(5)
                 ->timeout(15)
                 ->post('https://api.openai.com/v1/chat/completions', [
-                    'model'      => $model,
-                    'messages'   => [
+                    'model' => $model,
+                    'messages' => [
                         [
-                            'role'    => 'system',
+                            'role' => 'system',
                             'content' => 'You are Pawzo AI, a helpful and friendly pet care assistant. '
                                 . 'Answer pet-related questions clearly and concisely. '
                                 . 'If asked about medical emergencies, advise seeing a veterinarian.',
                         ],
-                        ['role' => 'user', 'content' => $userMessage],
+                        [
+                            'role' => 'user',
+                            'content' => $userMessage,
+                        ],
                     ],
-                    'max_tokens'  => 300,
+                    'max_tokens' => 300,
                     'temperature' => 0.7,
                 ]);
 
-            if ($response->successful()) {
-                return $response->json('choices.0.message.content');
+            if (! $response->successful()) {
+                Log::warning('OpenAI API failed', [
+                    'status' => $response->status(),
+                ]);
+
+                return null;
             }
 
-            Log::warning('OpenAI API failed', ['status' => $response->status(), 'body' => $response->body()]);
-            return null;
+            $content = $response->json('choices.0.message.content');
 
-        } catch (\Throwable $e) {
-            Log::error('OpenAI API exception', ['error' => $e->getMessage()]);
+            if (! is_string($content) || trim($content) === '') {
+                Log::warning('OpenAI API returned no usable text.');
+
+                return null;
+            }
+
+            return trim($content);
+        } catch (Throwable $exception) {
+            // Do not log credentials, request bodies or raw provider errors.
+            Log::error('OpenAI API exception', [
+                'exception_class' => get_class($exception),
+            ]);
+
             return null;
         }
     }
